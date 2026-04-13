@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: #09090b; /* Zinc 950 */
+  --font-sans: 'Inter', sans-serif;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--color-bg-base);
+    color: #f4f4f5; /* Zinc 50 */
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    /* Keeping the class name for compatibility, but making it flat white text */
+    color: #ffffff;
+  }
+
+  .glass-inset {
+    background: #18181b; /* Zinc 900 */
+    border: 1px solid #27272a; /* Zinc 800 */
+    border-radius: 12px;
+  }
+}
