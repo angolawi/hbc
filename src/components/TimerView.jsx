@@ -286,9 +286,9 @@ export default function TimerView() {
                 onChange={handlePhaseChange}
                 className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
               >
-                <option value="1">Fase 1 (Construção - 5 Etapas)</option>
-                <option value="2">Fase 2 (Consolidação - 5 Etapas)</option>
-                <option value="3">Fase 3 (Desempenho - 5 Etapas)</option>
+                <option value="1">Fase 1 </option>
+                <option value="2">Fase 2 </option>
+                <option value="3">Fase 3 </option>
               </select>
             </div>
             <div>
