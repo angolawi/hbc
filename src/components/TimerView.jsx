@@ -215,6 +215,15 @@ export default function TimerView() {
       alert("Preencha Disciplina, Semana, Quantidade Resolvida e Certa."); return;
     }
     
+    // Calcula tempo gasto na sessão para o Dashboard
+    let sessionMinutes = 0;
+    currentSteps.forEach(s => {
+       sessionMinutes += Math.floor(s.duration / 60);
+    });
+    const savedHours = localStorage.getItem('simpl_horas_estudadas');
+    const prevMins = savedHours ? parseInt(savedHours, 10) : 0;
+    localStorage.setItem('simpl_horas_estudadas', (prevMins + sessionMinutes).toString());
+    
     // Motor Numérico 1 e 2 Acumulado (Tópico e Categoria Global)
     const storedDisc = JSON.parse(localStorage.getItem('simpl_edital') || '[]');
     const today = new Date().toISOString().split('T')[0];

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import HomeDashboardView from './components/HomeDashboardView';
 import TimerView from './components/TimerView';
 import EditalView from './components/EditalView';
 import WeeklyStatsView from './components/WeeklyStatsView';
@@ -6,7 +7,7 @@ import CycleView from './components/CycleView';
 import CycleDashboardView from './components/CycleDashboardView';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('timer');
+  const [activeTab, setActiveTab] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
@@ -24,6 +25,12 @@ function App() {
             </button>
           </div>
           <div className="flex flex-col gap-2">
+            <button 
+              onClick={() => setActiveTab('home')}
+              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'home' ? 'border-sky-500 text-sky-400 bg-sky-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
+            >
+              Início
+            </button>
             <button 
               onClick={() => setActiveTab('timer')}
               className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'timer' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
@@ -70,6 +77,7 @@ function App() {
             </svg>
           </button>
           <span className="font-semibold text-lg text-zinc-100">
+            {activeTab === 'home' && 'Dashboard Inicial'}
             {activeTab === 'timer' && 'Cronômetro de Estudos'}
             {activeTab === 'ciclo' && 'Criação de Ciclos'}
             {activeTab === 'cycledashboard' && 'Visão de 30 Dias'}
@@ -79,6 +87,7 @@ function App() {
         </div>
 
         <div className="max-w-7xl mx-auto h-full w-full p-4 lg:p-6 pt-6">
+          {activeTab === 'home' && <HomeDashboardView />}
           {activeTab === 'timer' && <TimerView />}
           {activeTab === 'ciclo' && <CycleView />}
           {activeTab === 'cycledashboard' && <CycleDashboardView />}
