@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
-import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit } from 'lucide-react';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -14,6 +14,7 @@ export default function EditalView() {
   const [disciplines, setDisciplines] = useState([]);
   const [newDiscName, setNewDiscName] = useState('');
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
+  const [smartText, setSmartText] = useState('');
 
   // Load from local storage
   useEffect(() => {
@@ -118,6 +119,116 @@ export default function EditalView() {
     saveToStorage(updated);
   };
 
+  const processSmartExtract = () => {
+    if (!smartText.trim()) return;
+
+    let text = smartText.replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim();
+    // Separation of disciplines and topics if inline (ex: "DISCIPLINA: 1. Tema" -> "DISCIPLINA:\n1. Tema")
+    text = text.replace(/^([^a-z\n]{4,}?[:]?)(?=\s\d)/gm, '$1\n'); 
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const extractedDisciplines = [];
+    let currentDiscipline = null;
+    let currentContent = [];
+
+    const isDisciplineHeader = (str) => {
+      // Must start with uppercase letter, contain NO lowercase letters, and length reasonably short
+      return /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(str) && /^[^a-z]+$/.test(str) && str.length < 120;
+    };
+
+    const processTopics = (contentBlock) => {
+      if (!contentBlock) return [];
+      
+      let matches = [];
+      let match;
+      // Regex detects numbers like "1 ", "1.1", "1.1.1" usually followed by space or hyphens
+      const matchRegex = /\b(\d+(?:\.\d+)*)\s(?:[\-\–]\s)?/g;
+      
+      while ((match = matchRegex.exec(contentBlock)) !== null) {
+        matches.push({
+          prefix: match[1],
+          index: match.index,
+          endIndex: matchRegex.lastIndex
+        });
+      }
+
+      if (matches.length === 0) {
+        // Did not match the numerical pattern. Add as a single block.
+        return [{
+          id: Date.now().toString() + Math.random().toString(),
+          texto: contentBlock.trim(),
+          level: 0,
+          ...blankMetrics()
+        }];
+      }
+
+      let topics = [];
+      for (let i = 0; i < matches.length; i++) {
+        const current = matches[i];
+        const next = matches[i + 1];
+        const startTextIdx = current.endIndex;
+        const endTextIdx = next ? next.index : contentBlock.length;
+        
+        let texto = contentBlock.slice(startTextIdx, endTextIdx).trim();
+        // Clean leading punctuation
+        texto = texto.replace(/^[-–;\.,]*\s*/, '');
+        
+        const level = current.prefix.split('.').length - 1; // e.g. "1.1" -> 1 padding unit
+        
+        topics.push({
+          id: Date.now().toString() + '-' + i + Math.random().toString(),
+          texto: `${current.prefix} - ${texto}`,
+          level: level,
+          ...blankMetrics()
+        });
+      }
+      return topics;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (isDisciplineHeader(line)) {
+            if (currentDiscipline && currentContent.length > 0) {
+                currentDiscipline.topicos = processTopics(currentContent.join(' '));
+                extractedDisciplines.push(currentDiscipline);
+            } else if (currentDiscipline && currentContent.length === 0) {
+                extractedDisciplines.push(currentDiscipline);
+            }
+
+            currentDiscipline = {
+                id: Date.now().toString() + '-' + i,
+                nome: line.replace(/:$/, '').trim(),
+                categoria: 'Conhecimentos Específicos', // Assumes new complex disciplines are specific
+                topicos: []
+            };
+            currentContent = [];
+        } else {
+            if (currentDiscipline) {
+                currentContent.push(line);
+            } else {
+                currentDiscipline = {
+                    id: Date.now().toString() + '-def',
+                    nome: 'CONHECIMENTOS DIVERSOS',
+                    categoria: 'Conhecimentos Gerais',
+                    topicos: []
+                };
+                currentContent.push(line);
+            }
+        }
+    }
+
+    if (currentDiscipline) {
+      if(currentContent.length > 0) {
+        currentDiscipline.topicos = processTopics(currentContent.join(' '));
+      }
+      extractedDisciplines.push(currentDiscipline);
+    }
+    
+    saveToStorage([...disciplines, ...extractedDisciplines]);
+    setSmartText('');
+    alert(`Extração Concluída com sucesso! ${extractedDisciplines.length} disciplinas identificadas.`);
+  };
+
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full rounded-none">
       <header className="mb-8 flex justify-between items-center bg-zinc-900 p-6 rounded-2xl border border-zinc-800/80 shadow-lg">
@@ -126,6 +237,34 @@ export default function EditalView() {
           <p className="text-indigo-400 text-sm font-medium">Controle seu avanço descascando o edital tópico por tópico.</p>
         </div>
       </header>
+
+      {/* Smart Extract Edital Completo */}
+      <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-xl rounded-2xl mb-8 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
+        <div className="relative">
+            <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2 mb-2">
+            <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
+            </h2>
+            <p className="text-sm text-zinc-400 mb-6 max-w-4xl">
+            Cole integralmente o texto do bloco de "Conteúdo Programático" do seu edital. O sistema identificará automaticamente as disciplinas (escritas em <strong>CAIXA ALTA</strong>) e segmentará a hierarquia das sub-matérias baseado em prefixos numéricos (Ex: 1, 1.1, 1.2.1).
+            </p>
+            
+            <div className="flex flex-col xl:flex-row gap-4 items-end">
+                <Textarea 
+                placeholder={`Exemplo de Extração:\nLÍNGUA PORTUGUESA: 1 Compreensão e interpretação de textos. 1.1 Gêneros textuais.\nRACIOCÍNIO LÓGICO\n1 Conjuntos...`}
+                className="min-h-[140px] text-sm bg-zinc-950/80 w-full"
+                value={smartText}
+                onChange={(e) => setSmartText(e.target.value)}
+                />
+                <Button 
+                onClick={processSmartExtract} 
+                className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 w-full xl:w-64 h-12 shrink-0 font-bold tracking-wide"
+                >
+                Processar Edital
+                </Button>
+            </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 relative w-full items-start">
         {/* Adicionar Disciplina Sidebar */}
@@ -283,8 +422,12 @@ function TopicAccordion({ topico, onRemove, onUpdate }) {
         <div className="text-zinc-400 group-hover:text-amber-400 transition-colors">
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>
-        <div className="flex-1 text-sm text-zinc-200">
-          {topico.texto}
+        <div 
+          className="flex-1 text-sm text-zinc-200 flex items-center gap-2"
+          style={{ paddingLeft: topico.level ? `${topico.level * 1.25}rem` : '0' }}
+        >
+          {topico.level > 0 && <span className="text-zinc-600">↳</span>}
+          <span className="font-medium">{topico.texto}</span>
         </div>
         
         {/* Quick Indicators that show when collapsed */}
