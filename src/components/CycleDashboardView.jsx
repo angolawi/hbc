@@ -5,6 +5,7 @@ export default function CycleDashboardView() {
   const [disciplines, setDisciplines] = useState([]);
   const [dates, setDates] = useState([]);
   const [progress, setProgress] = useState({});
+  const [activeBrush, setActiveBrush] = useState(1);
 
   useEffect(() => {
     // Carregar disciplinas únicas do ciclo atual
@@ -40,7 +41,11 @@ export default function CycleDashboardView() {
   const handleCellClick = (discName, dateStr) => {
       const key = `${discName}_${dateStr}`;
       const currentStatus = progress[key] || 0;
-      const nextStatus = (currentStatus + 1) % 3; // 0 -> 1 -> 2 -> 0
+      
+      let nextStatus = activeBrush;
+      if (currentStatus === activeBrush) {
+          nextStatus = 0; // Desmarcar se clicar na mesma cor
+      }
 
       const newProgress = { ...progress, [key]: nextStatus };
       if (nextStatus === 0) {
@@ -52,8 +57,14 @@ export default function CycleDashboardView() {
   };
 
   const getCellAppearance = (status, isWeekend) => {
-      if (status === 1) return "bg-sky-500/30 border-sky-500/50"; // Planejado (Azul)
-      if (status === 2) return "bg-amber-500/30 border-amber-500/50 text-amber-200 font-bold"; // Concluído (Amarelo)
+      if (status === 1) return "bg-orange-500 border-orange-600";
+      if (status === 2) return "bg-red-500 border-red-600";
+      if (status === 3) return "bg-teal-600 border-teal-700";
+      if (status === 4) return "bg-sky-500 border-sky-600";
+      if (status === 5) return "bg-purple-500 border-purple-600";
+      if (status === 6) return "bg-emerald-500 border-emerald-600";
+      if (status === 7) return "bg-pink-500 border-pink-600";
+      if (status === 8) return "bg-amber-400 border-amber-500";
       
       // Vazio
       if (isWeekend) return "bg-zinc-800/40 border-zinc-700 hover:bg-zinc-700/50"; 
@@ -74,7 +85,7 @@ export default function CycleDashboardView() {
             <Calendar className="text-rose-500" />
             Visão 30D (Grid de Ciclo)
           </h1>
-          <p className="text-zinc-400 text-sm font-medium mt-1">Acompanhe seu avanço diário clicando nas células (1x=Agendado, 2x=Concluído).</p>
+          <p className="text-zinc-400 text-sm font-medium mt-1">Selecione uma cor de bloco abaixo. Clique nas células no calendário para preenchê-las com a cor atual destacando o ciclo.</p>
         </div>
       </header>
 
@@ -136,14 +147,7 @@ export default function CycleDashboardView() {
                                                 onClick={() => handleCellClick(disc, dateStr)}
                                                 className={`border-b border-r border-zinc-800/50 cursor-pointer transition-colors w-10 h-8 text-center align-middle hover:brightness-125 ${getCellAppearance(status, isWeekend)}`}
                                             >
-                                                {status === 2 && (
-                                                    <div className="flex items-center justify-center w-full h-full">
-                                                        <Check size={14} className="opacity-80 drop-shadow-md" strokeWidth={3} />
-                                                    </div>
-                                                )}
-                                                {status === 1 && (
-                                                    <div className="w-full h-full opacity-0"></div> // Apenas a cor azul
-                                                )}
+                                                {/* Cores sólidas sem exibição de número interno */}
                                             </td>
                                         );
                                     })}
@@ -155,10 +159,30 @@ export default function CycleDashboardView() {
               </table>
           </div>
           
-          <div className="p-3 bg-zinc-900 border-t border-zinc-800 text-xs flex gap-6 text-zinc-400 items-center justify-center shrink-0">
-             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-sm"></div> Vazio</div>
-             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-sky-500/30 border border-sky-500/50 rounded-sm"></div> Planejado</div>
-             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-amber-500/30 border border-amber-500/50 text-amber-200 flex items-center justify-center rounded-sm"><Check size={10} strokeWidth={4} /></div> Concluído</div>
+          <div className="p-3 bg-zinc-900 border-t border-zinc-800 text-xs flex flex-wrap gap-4 items-center justify-center shrink-0">
+             <span className="text-zinc-400 font-bold mr-2">Seletor de Ciclo:</span>
+
+             {[
+                { id: 1, color: "bg-orange-500" },
+                { id: 2, color: "bg-red-500" },
+                { id: 3, color: "bg-teal-600" },
+                { id: 4, color: "bg-sky-500" },
+                { id: 5, color: "bg-purple-500" },
+                { id: 6, color: "bg-emerald-500" },
+                { id: 7, color: "bg-pink-500" },
+                { id: 8, color: "bg-amber-400" }
+             ].map(brush => (
+                 <button 
+                    key={brush.id}
+                    onClick={() => setActiveBrush(brush.id)}
+                    className={`w-6 h-6 rounded-full transition-transform outline-none ${brush.color} ${activeBrush === brush.id ? 'ring-2 ring-offset-2 ring-offset-zinc-900 ring-white scale-110 shadow-lg' : 'opacity-40 hover:opacity-80'}`}
+                    title={`Selecionar Cor ${brush.id}`}
+                 />
+             ))}
+             
+             <div className="flex items-center gap-1.5 ml-4 text-zinc-400 border-l border-zinc-700 pl-4">
+                 <div className="w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-sm"></div> Clique na célula pintada p/ apagar
+             </div>
           </div>
       </div>
     </section>
