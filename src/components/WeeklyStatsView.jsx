@@ -19,6 +19,7 @@ export default function WeeklyStatsView() {
       const migrated = parsed.map(d => ({
         ...d,
         categoria: d.categoria || 'Conhecimentos Gerais',
+        currentPhase: d.currentPhase || 1,
         weeklyStats: d.weeklyStats || {}
       }));
       setDisciplines(migrated);
@@ -220,10 +221,22 @@ export default function WeeklyStatsView() {
                     </tr>
                     
                     {/* Discipline Rows */}
-                    {discs.map(d => (
+                    {discs.map(d => {
+                      const phase = d.currentPhase || 1;
+                      const phaseBorderClass = phase === 3 ? "border-rose-500/50" : phase === 2 ? "border-amber-500/50" : "border-zinc-800";
+                      const phaseBadgeClass = phase === 3 ? "bg-rose-500/20 text-rose-400" : "bg-amber-500/20 text-amber-400";
+                      
+                      return (
                       <tr key={d.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
-                        <td className="px-4 py-3 text-zinc-300 font-medium border-r-4 border-zinc-800 sticky left-0 bg-zinc-900 z-10 w-72 shadow-[2px_0_10px_rgba(0,0,0,0.3)]">
-                          <div className="truncate max-w-[280px]" title={d.nome}>{d.nome}</div>
+                        <td className={`px-4 py-3 text-zinc-300 font-medium border-r-4 ${phaseBorderClass} sticky left-0 bg-zinc-900 z-10 w-72 shadow-[2px_0_10px_rgba(0,0,0,0.3)]`}>
+                          <div className="flex items-center gap-2">
+                             {phase > 1 && (
+                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${phaseBadgeClass} shrink-0`}>
+                                 F{phase}
+                               </span>
+                             )}
+                             <div className="truncate w-full" title={d.nome}>{d.nome}</div>
+                          </div>
                         </td>
                         {weeks.map(w => {
                           const stats = d.weeklyStats[w.id] || { certas: '', resolvidas: '' };
@@ -250,7 +263,8 @@ export default function WeeklyStatsView() {
                           );
                         })}
                       </tr>
-                    ))}
+                      );
+                    })}
 
                     {/* Category Totals */}
                     {weeks.length > 0 && (

@@ -25,6 +25,7 @@ export default function EditalView() {
       const migrated = parsedData.map(d => ({
         ...d,
         categoria: d.categoria || 'Conhecimentos Gerais',
+        currentPhase: d.currentPhase || 1,
         topicos: d.topicos.map(t => ({
           ...t,
           ...(!t.fase1 ? blankMetrics() : {})
@@ -45,6 +46,7 @@ export default function EditalView() {
       id: Date.now().toString(),
       nome: newDiscName,
       categoria: newDiscCat,
+      currentPhase: 1,
       topicos: []
     };
     saveToStorage([...disciplines, newDisc]);
@@ -123,6 +125,16 @@ export default function EditalView() {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, categoria: newCategory };
+      }
+      return d;
+    });
+    saveToStorage(updated);
+  };
+
+  const updateDisciplinePhase = (discId, newPhase) => {
+    const updated = disciplines.map(d => {
+      if (d.id === discId) {
+        return { ...d, currentPhase: Number(newPhase) };
       }
       return d;
     });
@@ -208,7 +220,8 @@ export default function EditalView() {
             currentDiscipline = {
                 id: Date.now().toString() + '-' + i,
                 nome: line.replace(/:$/, '').trim(),
-                categoria: 'Conhecimentos Específicos', // Assumes new complex disciplines are specific
+                categoria: 'Conhecimentos Específicos',
+                currentPhase: 1,
                 topicos: []
             };
             currentContent = [];
@@ -220,6 +233,7 @@ export default function EditalView() {
                     id: Date.now().toString() + '-def',
                     nome: 'CONHECIMENTOS DIVERSOS',
                     categoria: 'Conhecimentos Gerais',
+                    currentPhase: 1,
                     topicos: []
                 };
                 currentContent.push(line);
@@ -327,6 +341,7 @@ export default function EditalView() {
                 discipline={disc} 
                 onRemove={() => removeDiscipline(disc.id)}
                 onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
+                onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
                 onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
                 onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
                 onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
@@ -339,23 +354,36 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, onRemove, onChangeCategory, onAddBulk, onRemoveTopico, onUpdateTopicMetrics }) {
+function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase, onAddBulk, onRemoveTopico, onUpdateTopicMetrics }) {
   const [bulkText, setBulkText] = useState('');
+  const [isListCollapsed, setIsListCollapsed] = useState(true);
   
   const handleExtrair = () => {
     if (!bulkText.trim()) return;
     onAddBulk(bulkText);
     setBulkText('');
+    setIsListCollapsed(false); // expands when something is added manually
   };
 
+  const phase = discipline.currentPhase || 1;
+  const isPhase2 = phase === 2;
+  const isPhase3 = phase === 3;
+  
+  const cardBorderClass = isPhase3 ? "border-rose-500/50 shadow-rose-900/20" : isPhase2 ? "border-amber-500/50 shadow-amber-900/20" : "border-zinc-800 shadow-xl";
+  const headerBgClass = isPhase3 ? "bg-rose-950/20" : isPhase2 ? "bg-amber-950/20" : "bg-zinc-900";
+  const selectPhaseClass = isPhase3 ? "border-rose-800 text-rose-400 bg-rose-950/40" : isPhase2 ? "border-amber-800 text-amber-400 bg-amber-950/40" : "bg-zinc-800 border-zinc-700 text-zinc-400";
+
   return (
-    <Card className="bg-zinc-900 border-zinc-800 shadow-xl rounded-2xl overflow-hidden">
-      <div className="p-6 border-b border-zinc-800/50 flex justify-between items-start bg-zinc-900">
-        <div>
+    <Card className={`bg-zinc-900 overflow-hidden rounded-2xl border ${cardBorderClass} transition-colors duration-500`}>
+      <div 
+        className={`p-6 border-b border-zinc-800/50 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${headerBgClass} transition-colors duration-500 cursor-pointer hover:bg-zinc-800/30`}
+        onClick={() => setIsListCollapsed(!isListCollapsed)}
+      >
+        <div onClick={(e) => e.stopPropagation()} className="w-full">
           <h3 className="text-2xl font-black text-zinc-100 flex items-center gap-3">
             {discipline.nome}
           </h3>
-          <p className="text-xs text-zinc-500 font-medium mt-1 flex items-center gap-2">
+          <p className="text-xs text-zinc-500 font-medium mt-2 flex flex-wrap items-center gap-2">
             <select 
               value={discipline.categoria} 
               onChange={(e) => onChangeCategory(e.target.value)}
@@ -364,48 +392,66 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onAddBulk, on
               <option value="Conhecimentos Gerais">Conhecimentos Gerais</option>
               <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
             </select>
-            <span>{discipline.topicos.length} tópicos extraídos.</span>
+            
+            <select 
+              value={phase} 
+              onChange={(e) => onChangePhase(e.target.value)}
+              className={`tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${selectPhaseClass}`}
+            >
+              <option value="1" className="bg-zinc-900 text-zinc-300">Fase 1 (Aprender)</option>
+              <option value="2" className="bg-zinc-900 text-amber-400">Fase 2 (Revisar)</option>
+              <option value="3" className="bg-zinc-900 text-rose-400">Fase 3 (Manutenção)</option>
+            </select>
+            
+            <span className="ml-2 font-bold">{discipline.topicos.length} tópicos extraídos.</span>
           </p>
         </div>
         
-        <Button variant="ghost" size="sm" onClick={onRemove} className="text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 z-10">
-          <Trash size={18} />
-        </Button>
-      </div>
-
-      <div className="p-6 bg-zinc-950/50 space-y-6">
-        
-        <div className="bg-zinc-900 border border-zinc-800/80 p-4 rounded-xl">
-          <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <FileText size={16} /> Colar Conteúdo Programático
-          </label>
-          <Textarea 
-            placeholder="Cole o texto bloco do edital aqui..."
-            className="min-h-[100px] text-sm bg-zinc-950 mb-3"
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
-          />
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] text-zinc-500">Separará tópicos automaticamente.</span>
-            <Button size="sm" onClick={handleExtrair} className="bg-zinc-800 hover:bg-indigo-600 text-zinc-300 border-none cursor-pointer">
-              Extrair e Inserir
-            </Button>
-          </div>
+        <div className="flex gap-2 items-center shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => setIsListCollapsed(!isListCollapsed)} className="text-zinc-400 hover:text-zinc-100 p-2">
+            {isListCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 z-10 shrink-0 p-2">
+            <Trash size={18} />
+          </Button>
         </div>
-
-        {discipline.topicos.length > 0 && (
-          <div className="space-y-3 mt-4">
-            {discipline.topicos.map(topico => (
-              <TopicAccordion 
-                key={topico.id} 
-                topico={topico}
-                onRemove={() => onRemoveTopico(topico.id)}
-                onUpdate={(phase, field, val) => onUpdateTopicMetrics(topico.id, phase, field, val)}
-              />
-            ))}
-          </div>
-        )}
       </div>
+
+      {!isListCollapsed && (
+        <div className="p-6 bg-zinc-950/50 space-y-6 animate-in slide-in-from-top-2 duration-300">
+          
+          <div className="bg-zinc-900 border border-zinc-800/80 p-4 rounded-xl">
+            <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <FileText size={16} /> Colar Conteúdo Programático
+            </label>
+            <Textarea 
+              placeholder="Cole o texto bloco do edital aqui..."
+              className="min-h-[100px] text-sm bg-zinc-950 mb-3"
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+            />
+            <div className="flex justify-between items-center">
+              <span className="text-[11px] text-zinc-500">Separará tópicos automaticamente.</span>
+              <Button size="sm" onClick={handleExtrair} className="bg-zinc-800 hover:bg-indigo-600 text-zinc-300 border-none cursor-pointer">
+                Extrair e Inserir
+              </Button>
+            </div>
+          </div>
+
+          {discipline.topicos.length > 0 && (
+            <div className="space-y-3 mt-4">
+              {discipline.topicos.map(topico => (
+                <TopicAccordion 
+                  key={topico.id} 
+                  topico={topico}
+                  onRemove={() => onRemoveTopico(topico.id)}
+                  onUpdate={(phase, field, val) => onUpdateTopicMetrics(topico.id, phase, field, val)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
