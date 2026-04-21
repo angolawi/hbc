@@ -119,6 +119,16 @@ export default function EditalView() {
     saveToStorage(updated);
   };
 
+  const updateDisciplineCategory = (discId, newCategory) => {
+    const updated = disciplines.map(d => {
+      if (d.id === discId) {
+        return { ...d, categoria: newCategory };
+      }
+      return d;
+    });
+    saveToStorage(updated);
+  };
+
   const processSmartExtract = () => {
     if (!smartText.trim()) return;
 
@@ -316,6 +326,7 @@ export default function EditalView() {
                 key={disc.id} 
                 discipline={disc} 
                 onRemove={() => removeDiscipline(disc.id)}
+                onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
                 onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
                 onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
                 onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
@@ -328,7 +339,7 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, onRemove, onAddBulk, onRemoveTopico, onUpdateTopicMetrics }) {
+function DisciplineBlock({ discipline, onRemove, onChangeCategory, onAddBulk, onRemoveTopico, onUpdateTopicMetrics }) {
   const [bulkText, setBulkText] = useState('');
   
   const handleExtrair = () => {
@@ -344,8 +355,15 @@ function DisciplineBlock({ discipline, onRemove, onAddBulk, onRemoveTopico, onUp
           <h3 className="text-2xl font-black text-zinc-100 flex items-center gap-3">
             {discipline.nome}
           </h3>
-          <p className="text-xs text-zinc-500 font-medium mt-1 flex gap-2">
-            <span className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider">[{discipline.categoria}]</span>
+          <p className="text-xs text-zinc-500 font-medium mt-1 flex items-center gap-2">
+            <select 
+              value={discipline.categoria} 
+              onChange={(e) => onChangeCategory(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700"
+            >
+              <option value="Conhecimentos Gerais">Conhecimentos Gerais</option>
+              <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
+            </select>
             <span>{discipline.topicos.length} tópicos extraídos.</span>
           </p>
         </div>
