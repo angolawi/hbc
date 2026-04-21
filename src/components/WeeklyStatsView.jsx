@@ -41,11 +41,35 @@ export default function WeeklyStatsView() {
   };
 
   const addWeek = () => {
-    if (!newWeekName.trim()) return;
+    let baseDateStr = '';
+
+    if (weeks.length > 0) {
+      const lastWeek = weeks[weeks.length - 1];
+      const dateText = lastWeek.baseDate || lastWeek.name.replace("Relação até ", "").trim();
+      const parts = dateText.split('/');
+      
+      if (parts.length === 3) {
+        const dt = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        dt.setDate(dt.getDate() + 7);
+        baseDateStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } else {
+         alert("Não foi possível identificar a data da última semana. Por favor, certifique-se de que está no formato DD/MM/AAAA.");
+         return;
+      }
+    } else {
+      if (!newWeekName.trim()) {
+        alert("Insira a data do término do primeiro ciclo de avaliação.");
+        return;
+      }
+      baseDateStr = newWeekName.trim();
+    }
+
     const novaSb = {
       id: Date.now().toString(),
-      name: `Relação até ${newWeekName}`
+      name: `Relação até ${baseDateStr}`,
+      baseDate: baseDateStr
     };
+    
     saveWeeks([...weeks, novaSb]);
     setNewWeekName('');
   };
@@ -130,21 +154,24 @@ export default function WeeklyStatsView() {
           <p className="text-zinc-500 text-sm font-medium">Controle acumulativo de questões resolvidas por disciplina.</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          <Input 
-            placeholder="Data (Ex: 10/03/2026)" 
-            value={newWeekName} 
-            onChange={e => setNewWeekName(e.target.value)} 
-            className="w-full md:w-48 text-sm h-10 border-zinc-700 bg-zinc-950"
-            onKeyDown={(e) => e.key === 'Enter' && addWeek()}
-          />
-          <Button onClick={addWeek} className="bg-emerald-600 hover:bg-emerald-500 text-white h-10 whitespace-nowrap">
-            <Plus size={16} className="mr-2" /> Nova Semana
+          {weeks.length === 0 && (
+            <Input 
+              placeholder="Data Base (Ex: 10/03/2026)" 
+              value={newWeekName} 
+              onChange={e => setNewWeekName(e.target.value)} 
+              className="w-full md:w-48 text-sm h-10 border-zinc-700 bg-zinc-950"
+              onKeyDown={(e) => e.key === 'Enter' && addWeek()}
+            />
+          )}
+          <Button onClick={addWeek} className="bg-emerald-600 hover:bg-emerald-500 text-white h-10 whitespace-nowrap px-4">
+            <Plus size={16} className="mr-2" /> 
+            {weeks.length === 0 ? "Iniciar Planilha" : "Adicionar +7 Dias"}
           </Button>
         </div>
       </header>
 
       <Card className="bg-zinc-900 border-zinc-800 shadow-xl rounded-2xl overflow-x-auto relative">
-        <div className="min-w-[1000px] w-full pb-4">
+        <div className="w-full pb-4" style={{ minWidth: `max(1000px, ${300 + weeks.length * 300}px)` }}>
           <table className="w-full text-left text-sm whitespace-nowrap border-collapse table-fixed">
             <thead>
               {/* Header Row 1: The Titles of Weeks */}
