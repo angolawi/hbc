@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
-import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit } from 'lucide-react';
+import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil } from 'lucide-react';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -135,6 +135,24 @@ export default function EditalView() {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, currentPhase: Number(newPhase) };
+      }
+      return d;
+    });
+    saveToStorage(updated);
+  };
+
+  const editTopicoText = (discId, topicoId, newText) => {
+    const updated = disciplines.map(d => {
+      if (d.id === discId) {
+        return {
+          ...d,
+          topicos: d.topicos.map(t => {
+            if (t.id === topicoId) {
+              return { ...t, texto: newText };
+            }
+            return t;
+          })
+        };
       }
       return d;
     });
@@ -345,6 +363,7 @@ export default function EditalView() {
                 onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
                 onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
                 onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
+                onEditTopicoText={(topicoId, newText) => editTopicoText(disc.id, topicoId, newText)}
               />
             ))
           )}
@@ -354,7 +373,7 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase, onAddBulk, onRemoveTopico, onUpdateTopicMetrics }) {
+function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText }) {
   const [bulkText, setBulkText] = useState('');
   const [isListCollapsed, setIsListCollapsed] = useState(true);
   
@@ -441,11 +460,12 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
           {discipline.topicos.length > 0 && (
             <div className="space-y-3 mt-4">
               {discipline.topicos.map(topico => (
-                <TopicAccordion 
+                  <TopicAccordion 
                   key={topico.id} 
                   topico={topico}
                   onRemove={() => onRemoveTopico(topico.id)}
                   onUpdate={(phase, field, val) => onUpdateTopicMetrics(topico.id, phase, field, val)}
+                  onEditText={(newText) => onEditTopicoText(topico.id, newText)}
                 />
               ))}
             </div>
@@ -456,8 +476,20 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
   );
 }
 
-function TopicAccordion({ topico, onRemove, onUpdate }) {
+function TopicAccordion({ topico, onRemove, onUpdate, onEditText }) {
   const [expanded, setExpanded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(topico.texto);
+
+  const handleSaveText = (e) => {
+    if (e && e.key && e.key !== 'Enter') return;
+    setIsEditing(false);
+    if (editText.trim() && editText !== topico.texto) {
+      onEditText(editText.trim());
+    } else {
+      setEditText(topico.texto);
+    }
+  };
 
   const calcPercentage = (certas, resolvidas) => {
     const c = Number(certas);
@@ -491,7 +523,22 @@ function TopicAccordion({ topico, onRemove, onUpdate }) {
           style={{ paddingLeft: topico.level ? `${topico.level * 1.25}rem` : '0' }}
         >
           {topico.level > 0 && <span className="text-zinc-600">↳</span>}
-          <span className="font-medium">{topico.texto}</span>
+          {isEditing ? (
+            <input 
+              type="text" 
+              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 text-sm focus:outline-none focus:border-indigo-500 w-full font-medium"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={handleSaveText}
+              onBlur={handleSaveText}
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className="font-medium" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
+              {topico.texto}
+            </span>
+          )}
         </div>
         
         {/* Quick Indicators that show when collapsed */}
@@ -503,14 +550,26 @@ function TopicAccordion({ topico, onRemove, onUpdate }) {
           </div>
         )}
 
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={(e) => { e.stopPropagation(); onRemove(); }} 
-          className="text-zinc-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity p-2 h-auto"
-        >
-          <Trash size={16} />
-        </Button>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} 
+            className="text-zinc-600 hover:text-indigo-400 p-2 h-auto"
+            title="Editar Tópico"
+          >
+            <Pencil size={16} />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={(e) => { e.stopPropagation(); onRemove(); }} 
+            className="text-zinc-600 hover:text-rose-400 p-2 h-auto"
+            title="Remover Tópico"
+          >
+            <Trash size={16} />
+          </Button>
+        </div>
       </div>
 
       {expanded && (
