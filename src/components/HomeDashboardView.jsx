@@ -20,9 +20,18 @@ export default function HomeDashboardView() {
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
 
-    // 2. Extrair dados do Edital
+    // 2. Extrair dados do Edital e filtrar pelo ciclo atual
     const rawEdital = localStorage.getItem('simpl_edital');
-    const discData = rawEdital ? JSON.parse(rawEdital) : [];
+    let discData = rawEdital ? JSON.parse(rawEdital) : [];
+
+    const cicloData = localStorage.getItem('simpl_ciclo');
+    if (cicloData) {
+      const parsedCiclo = JSON.parse(cicloData);
+      const nomesNoCiclo = [...new Set(parsedCiclo.map(b => b.nome))];
+      if (nomesNoCiclo.length > 0) {
+        discData = discData.filter(d => nomesNoCiclo.includes(d.nome));
+      }
+    }
 
     let totalCertas = 0;
     let totalResolvidas = 0;
