@@ -22,6 +22,7 @@ export default function CycleView() {
   const [showFatigueWarning, setShowFatigueWarning] = useState(false);
   const [fatigueMsg, setFatigueMsg] = useState("");
   const [modalData, setModalData] = useState({ isOpen: false, title: "", message: "", type: "info" });
+  const [inactiveCycles, setInactiveCycles] = useState([]);
 
   const customAlert = (title, message, type = "info") => {
     setModalData({ isOpen: true, title, message, type });
@@ -41,6 +42,11 @@ export default function CycleView() {
     const active = localStorage.getItem('simpl_ciclo');
     if (active) {
       setActiveCycle(JSON.parse(active));
+    }
+
+    const history = localStorage.getItem('simpl_ciclo_history');
+    if (history) {
+      setInactiveCycles(JSON.parse(history));
     }
   }, []);
 
@@ -199,6 +205,12 @@ export default function CycleView() {
   };
 
   const saveCycle = () => {
+    if (activeCycle && activeCycle.length > 0) {
+      const newHistory = [activeCycle, ...inactiveCycles];
+      localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
+      setInactiveCycles(newHistory);
+    }
+    
     localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
     setActiveCycle(generatedCycle);
     setStep(1); // Reset step back to initial view after saving
@@ -216,6 +228,18 @@ export default function CycleView() {
     if (h > 0 && m > 0) return `${h}h ${m}m`;
     if (h > 0) return `${h}h`;
     return `${m}m`;
+  };
+
+  const getGridClass = (len) => {
+    const n = Math.sqrt(len);
+    let cols = 4;
+    if (Number.isInteger(n)) {
+      cols = Math.min(n, 4);
+    }
+    
+    if (cols === 2) return "grid grid-cols-1 sm:grid-cols-2";
+    if (cols === 3) return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+    return "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4";
   };
 
   return (
@@ -247,7 +271,7 @@ export default function CycleView() {
             </Button>
           </div>
           <p className="text-zinc-400 text-sm mb-4">Esta é a sua fila de estudos. Ela guiará a ordem das disciplinas no cronômetro.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-4">
+          <div className={`${getGridClass(activeCycle.length)} gap-4 pb-4`}>
             {activeCycle.map((block, idx) => {
               const tagInfo = TAGS[block.tag] || { label: 'Desconhecido', icon: '❓', color: 'text-zinc-400 border-zinc-700' };
               return (
@@ -272,6 +296,56 @@ export default function CycleView() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {inactiveCycles && inactiveCycles.length > 0 && (
+        <div className="mb-8 space-y-6">
+          {inactiveCycles.map((cycle, cycleIdx) => (
+            <div key={`history-${cycleIdx}`} className="p-6 bg-zinc-900/40 border border-zinc-800/50 rounded-2xl opacity-70 grayscale-[30%] transition-opacity hover:opacity-100">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-zinc-500 flex items-center gap-2">
+                  <BrainCircuit className="text-zinc-500" />
+                  Ciclo Anterior {cycleIdx === 0 && "(Último)"}
+                </h2>
+                <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => {
+                  if (window.confirm("Deseja realmente apagar este ciclo do histórico?")) {
+                    const newHistory = [...inactiveCycles];
+                    newHistory.splice(cycleIdx, 1);
+                    localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
+                    setInactiveCycles(newHistory);
+                  }
+                }}>
+                  Excluir do Histórico
+                </Button>
+              </div>
+              <div className={`${getGridClass(cycle.length)} gap-4 pb-4`}>
+                {cycle.map((block, idx) => {
+                  const tagInfo = TAGS[block.tag] || { label: 'Desconhecido', icon: '❓', color: 'text-zinc-400 border-zinc-700' };
+                  return (
+                    <div key={`hist-block-${cycleIdx}-${block.uid}-${idx}`} className="bg-zinc-950/50 border border-zinc-800/50 rounded-xl p-4 min-w-[220px] flex-shrink-0 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-6 h-6 rounded-full bg-zinc-800 text-zinc-400 flex items-center justify-center text-xs font-bold border border-zinc-700">
+                            {idx + 1}
+                          </span>
+                          <h4 className="font-bold text-zinc-400 text-sm truncate" title={block.nome}>{block.nome}</h4>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tagInfo.color} opacity-60 inline-block`}>
+                            {tagInfo.icon} {tagInfo.label}
+                        </span>
+                      </div>
+                      <div className="text-right mt-4 pt-4 border-t border-zinc-800/50">
+                        <span className="font-mono font-bold text-zinc-500 text-sm">
+                          {formatMins(block.duration)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
