@@ -247,7 +247,7 @@ export default function CycleView() {
             </Button>
           </div>
           <p className="text-zinc-400 text-sm mb-4">Esta é a sua fila de estudos. Ela guiará a ordem das disciplinas no cronômetro.</p>
-          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-4">
             {activeCycle.map((block, idx) => {
               const tagInfo = TAGS[block.tag] || { label: 'Desconhecido', icon: '❓', color: 'text-zinc-400 border-zinc-700' };
               return (
