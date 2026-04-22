@@ -174,7 +174,7 @@ export default function EditalView() {
 
     let text = smartText.replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim();
     // Separation of disciplines and topics if inline (ex: "DISCIPLINA: 1. Tema" -> "DISCIPLINA:\n1. Tema")
-    text = text.replace(/^([^a-z\n]{4,}?[:]?)(?=\s?\d)/gm, '$1\n'); 
+    text = text.replace(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇ\s,\-\(\)/&]{4,}:?)(?=\s*(\d|[A-Z][a-z]))/gm, '$1\n'); 
 
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const extractedDisciplines = [];
