@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { GripVertical, AlertTriangle, AlertCircle, Info, BrainCircuit } from 'lucide-react';
+import { GripVertical, AlertTriangle, AlertCircle, Info, BrainCircuit, ChevronDown, ChevronUp } from 'lucide-react';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -23,6 +23,7 @@ export default function CycleView() {
   const [fatigueMsg, setFatigueMsg] = useState("");
   const [modalData, setModalData] = useState({ isOpen: false, title: "", message: "", type: "info" });
   const [inactiveCycles, setInactiveCycles] = useState([]);
+  const [isCreateOpen, setIsCreateOpen] = useState(true);
 
   const customAlert = (title, message, type = "info") => {
     setModalData({ isOpen: true, title, message, type });
@@ -42,6 +43,7 @@ export default function CycleView() {
     const active = localStorage.getItem('simpl_ciclo');
     if (active) {
       setActiveCycle(JSON.parse(active));
+      setIsCreateOpen(false);
     }
 
     const history = localStorage.getItem('simpl_ciclo_history');
@@ -244,13 +246,19 @@ export default function CycleView() {
 
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full">
-      <header className="mb-8 p-6 bg-zinc-900 rounded-2xl border border-zinc-800/80 shadow-lg flex justify-between items-center">
+      <header 
+        className="mb-8 p-6 bg-zinc-900 rounded-2xl border border-zinc-800/80 shadow-lg flex justify-between items-center cursor-pointer hover:bg-zinc-800 transition-colors"
+        onClick={() => setIsCreateOpen(!isCreateOpen)}
+      >
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100 flex items-center gap-2">
             <BrainCircuit className="text-amber-500" />
-            Criar Ciclo de Estudos
+            Criador de Ciclos de Estudos
           </h1>
           <p className="text-zinc-400 text-sm font-medium mt-1">Gere sua fila contínua com otimização e alternância cognitiva.</p>
+        </div>
+        <div className="bg-zinc-950 p-2 rounded-lg border border-zinc-800">
+          {isCreateOpen ? <ChevronUp className="text-zinc-400" /> : <ChevronDown className="text-zinc-400" />}
         </div>
       </header>
 
@@ -349,9 +357,11 @@ export default function CycleView() {
         </div>
       )}
 
-      {step === 1 && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <Card className="p-6 bg-zinc-900 border-zinc-800/80 xl:col-span-2">
+      {isCreateOpen && (
+        <div className="animate-in slide-in-from-top-4 fade-in duration-300">
+          {step === 1 && (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+              <Card className="p-6 bg-zinc-900 border-zinc-800/80 xl:col-span-2">
             <h2 className="text-lg font-bold text-zinc-100 mb-2">1. Seleção de Disciplinas</h2>
             <p className="text-zinc-500 text-sm mb-6">Selecione quais matérias farão parte deste ciclo de estudos.</p>
             
