@@ -4,6 +4,7 @@ import TimerView from './components/TimerView';
 import EditalView from './components/EditalView';
 import WeeklyStatsView from './components/WeeklyStatsView';
 import CycleView from './components/CycleView';
+import ActiveCycleView from './components/ActiveCycleView';
 import CycleDashboardView from './components/CycleDashboardView';
 
 function App() {
@@ -39,9 +40,9 @@ function App() {
             </button>
             <button
               onClick={() => setActiveTab('ciclo')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'ciclo' ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
+              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'ciclo' || activeTab === 'create_cycle' ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
             >
-              Criar Ciclo
+              Meu Ciclo
             </button>
             <button
               onClick={() => setActiveTab('cycledashboard')}
@@ -79,7 +80,8 @@ function App() {
           <span className="font-semibold text-lg text-zinc-100">
             {activeTab === 'home' && 'Dashboard Inicial'}
             {activeTab === 'timer' && 'Cronômetro de Estudos'}
-            {activeTab === 'ciclo' && 'Criação de Ciclos'}
+            {activeTab === 'ciclo' && 'Meu Ciclo de Estudos'}
+            {activeTab === 'create_cycle' && 'Criador de Ciclos'}
             {activeTab === 'cycledashboard' && 'Visão de 30 Dias'}
             {activeTab === 'edital' && 'Edital Verticalizado'}
             {activeTab === 'stats' && 'Desempenho Geral'}
@@ -89,7 +91,8 @@ function App() {
         <div className="max-w-7xl mx-auto h-full w-full p-4 lg:p-6 pt-6">
           {activeTab === 'home' && <HomeDashboardView />}
           {activeTab === 'timer' && <TimerView />}
-          {activeTab === 'ciclo' && <CycleView />}
+          {activeTab === 'ciclo' && <ActiveCycleView setActiveTab={setActiveTab} />}
+          {activeTab === 'create_cycle' && <CycleView setActiveTab={setActiveTab} />}
           {activeTab === 'cycledashboard' && <CycleDashboardView />}
           {activeTab === 'edital' && <EditalView />}
           {activeTab === 'stats' && <WeeklyStatsView />}
