@@ -141,6 +141,16 @@ export default function EditalView() {
     saveToStorage(updated);
   };
 
+  const editDisciplineName = (discId, newName) => {
+    const updated = disciplines.map(d => {
+      if (d.id === discId) {
+        return { ...d, nome: newName };
+      }
+      return d;
+    });
+    saveToStorage(updated);
+  };
+
   const editTopicoText = (discId, topicoId, newText) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
@@ -364,6 +374,7 @@ export default function EditalView() {
                 onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
                 onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
                 onEditTopicoText={(topicoId, newText) => editTopicoText(disc.id, topicoId, newText)}
+                onEditName={(newName) => editDisciplineName(disc.id, newName)}
               />
             ))
           )}
@@ -373,9 +384,21 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText }) {
+function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
   const [bulkText, setBulkText] = useState('');
   const [isListCollapsed, setIsListCollapsed] = useState(true);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(discipline.nome);
+
+  const handleSaveName = (e) => {
+    if (e && e.key && e.key !== 'Enter') return;
+    setIsEditingName(false);
+    if (editName.trim() && editName !== discipline.nome) {
+      onEditName(editName.trim());
+    } else {
+      setEditName(discipline.nome);
+    }
+  };
   
   const handleExtrair = () => {
     if (!bulkText.trim()) return;
@@ -398,10 +421,37 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
         className={`p-6 border-b border-zinc-800/50 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${headerBgClass} transition-colors duration-500 cursor-pointer hover:bg-zinc-800/30`}
         onClick={() => setIsListCollapsed(!isListCollapsed)}
       >
-        <div onClick={(e) => e.stopPropagation()} className="w-full">
-          <h3 className="text-2xl font-black text-zinc-100 flex items-center gap-3">
-            {discipline.nome}
-          </h3>
+        <div onClick={(e) => e.stopPropagation()} className="w-full flex-1">
+          <div className="flex items-center gap-2 group/title">
+            {isEditingName ? (
+              <input 
+                  type="text" 
+                  className="bg-zinc-800 border-none rounded px-2 py-1 text-zinc-100 text-2xl font-black focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={handleSaveName}
+                  onBlur={handleSaveName}
+                  autoFocus
+                />
+            ) : (
+              <>
+              <h3 
+                className="text-2xl font-black text-zinc-100 cursor-text"
+                onDoubleClick={() => setIsEditingName(true)}
+              >
+                {discipline.nome}
+              </h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setIsEditingName(true)}
+                className="opacity-0 group-hover/title:opacity-100 text-zinc-500 hover:text-indigo-400 p-1 h-auto transition-opacity"
+              >
+                <Pencil size={16} />
+              </Button>
+              </>
+            )}
+          </div>
           <p className="text-xs text-zinc-500 font-medium mt-2 flex flex-wrap items-center gap-2">
             <select 
               value={discipline.categoria} 
