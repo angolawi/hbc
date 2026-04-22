@@ -92,11 +92,11 @@ export default function CycleDashboardView() {
       {/* Tabela Scrollável */}
       <div className="flex-1 bg-zinc-950 border border-zinc-800/50 rounded-xl overflow-hidden flex flex-col shadow-2xl relative">
           <div className="overflow-x-auto overflow-y-auto w-full h-[65vh] custom-scrollbar pb-4">
-              <table className="w-auto border-collapse text-left min-w-max">
+              <table className="w-auto border-collapse text-left min-w-max table-fixed">
                   <thead className="sticky top-0 z-20">
                       {/* Linha 1: Titulo Geral */}
                       <tr>
-                          <th className="sticky left-0 z-30 bg-zinc-900 border-b border-r border-zinc-800 p-3 min-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                          <th className="sticky left-0 z-30 bg-zinc-900 border-b border-r border-zinc-800 p-3 w-[250px] min-w-[250px] max-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                               <span className="text-sm font-bold text-zinc-100">Ciclo Atual</span>
                           </th>
                           <th colSpan={dates.length} className="bg-zinc-900 border-b border-zinc-800 p-2 text-center text-sm font-bold text-zinc-100">
@@ -105,12 +105,12 @@ export default function CycleDashboardView() {
                       </tr>
                       {/* Linha 2: Datas */}
                       <tr>
-                          <th className="sticky left-0 z-30 bg-zinc-950 border-b border-r border-zinc-800 p-2 min-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                          <th className="sticky left-0 z-30 bg-zinc-950 border-b border-r border-zinc-800 p-2 w-[250px] min-w-[250px] max-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                           </th>
                           {dates.map((d, i) => {
                               const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                               return (
-                                  <th key={i} className={`p-1 w-10 min-w-[40px] text-center border-b border-r border-zinc-800 text-[10px] uppercase font-bold tracking-wider ${isWeekend ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-950 text-zinc-400'}`}>
+                                  <th key={i} className={`p-0 w-6 min-w-[24px] max-w-[24px] text-center border-b border-r border-zinc-800 text-[10px] uppercase font-bold tracking-wider ${isWeekend ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-950 text-zinc-400'}`}>
                                       <div className="-rotate-90 whitespace-nowrap h-16 flex items-center justify-center">
                                          {formatDateLabel(d)}
                                       </div>
@@ -132,8 +132,8 @@ export default function CycleDashboardView() {
                               const isRevisao = disc.includes("Revisão");
                               return (
                                 <tr key={rIdx} className="group">
-                                    <td className={`sticky left-0 z-10 border-b border-r border-zinc-800 p-2 text-xs font-semibold shadow-[2px_0_5px_rgba(0,0,0,0.5)] ${isRevisao ? 'bg-indigo-950/40 text-indigo-300' : 'bg-zinc-900 text-zinc-300 group-hover:bg-zinc-800'}`}>
-                                        {disc}
+                                    <td className={`sticky left-0 z-10 border-b border-r border-zinc-800 py-1 px-2 text-[11px] font-semibold w-[250px] min-w-[250px] max-w-[250px] overflow-hidden shadow-[2px_0_5px_rgba(0,0,0,0.5)] ${isRevisao ? 'bg-indigo-950/40 text-indigo-300' : 'bg-zinc-900 text-zinc-300 group-hover:bg-zinc-800'}`}>
+                                        <div className="truncate w-full" title={disc}>{disc}</div>
                                     </td>
                                     {dates.map((d, cIdx) => {
                                         const dateStr = d.toISOString().split('T')[0];
@@ -145,7 +145,7 @@ export default function CycleDashboardView() {
                                             <td 
                                                 key={cIdx} 
                                                 onClick={() => handleCellClick(disc, dateStr)}
-                                                className={`border-b border-r border-zinc-800/50 cursor-pointer transition-colors w-10 h-8 text-center align-middle hover:brightness-125 ${getCellAppearance(status, isWeekend)}`}
+                                                className={`p-0 border-b border-r border-zinc-800/50 cursor-pointer transition-colors w-6 h-6 min-w-[24px] max-w-[24px] text-center align-middle hover:brightness-125 ${getCellAppearance(status, isWeekend)}`}
                                             >
                                                 {/* Cores sólidas sem exibição de número interno */}
                                             </td>
