@@ -138,6 +138,20 @@ export default function CycleDashboardView() {
       return dateArray;
   };
 
+  const isButtonVisible = () => {
+      if (instances.length === 0) return true;
+      const latest = instances[0];
+      const dates = getDatesForInstance(latest.startDate);
+      const dateStrings = dates.map(d => d.toISOString().split('T')[0]);
+      
+      return latest.disciplines.every(disc => {
+          return dateStrings.some(dStr => {
+              const key = `${disc}_${dStr}`;
+              return progress[key] && progress[key] !== 0;
+          });
+      });
+  };
+
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full flex flex-col relative pb-32">
       <header className="mb-6 p-6 bg-zinc-900 rounded-2xl border border-zinc-800/80 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center shrink-0 gap-4">
@@ -148,12 +162,14 @@ export default function CycleDashboardView() {
           </h1>
           <p className="text-zinc-400 text-sm font-medium mt-1">Crie instâncias fixas de 30 dias com base na sua fila de disciplinas atual.</p>
         </div>
-        <button 
-           onClick={handleCreateInstance}
-           className="bg-rose-600 hover:bg-rose-500 flex items-center gap-2 text-white font-bold py-2.5 px-5 rounded-xl shrink-0 shadow-lg shadow-rose-900/20 text-sm mt-2 md:mt-0 tracking-wide transition-all"
-        >
-           <Calendar size={18} /> Nova Instância (Hoje)
-        </button>
+        {isButtonVisible() && (
+            <button 
+               onClick={handleCreateInstance}
+               className="bg-rose-600 hover:bg-rose-500 flex items-center gap-2 text-white font-bold py-2.5 px-5 rounded-xl shrink-0 shadow-lg shadow-rose-900/20 text-sm mt-2 md:mt-0 tracking-wide transition-all"
+            >
+               <Calendar size={18} /> Nova Instância (Hoje)
+            </button>
+        )}
       </header>
 
       {/* Instâncias */}
