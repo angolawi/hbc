@@ -61,7 +61,7 @@ export default function EditalView() {
 
   const addTopicosEmMassa = (discId, textoLote) => {
     const topicosExtraidos = textoLote
-      .split(/(?=\b\d+(?:\.\d+)*\s+)/g)
+      .split(/(?=\b\d+(?:\.\d+)*[\.\s\-–]+[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g)
       .map(t => t.trim())
       .filter(t => t.length > 2);
 
@@ -164,7 +164,7 @@ export default function EditalView() {
 
     let text = smartText.replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim();
     // Separation of disciplines and topics if inline (ex: "DISCIPLINA: 1. Tema" -> "DISCIPLINA:\n1. Tema")
-    text = text.replace(/^([^a-z\n]{4,}?[:]?)(?=\s\d)/gm, '$1\n'); 
+    text = text.replace(/^([^a-z\n]{4,}?[:]?)(?=\s?\d)/gm, '$1\n'); 
 
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const extractedDisciplines = [];
@@ -182,7 +182,7 @@ export default function EditalView() {
       let matches = [];
       let match;
       // Regex detects numbers like "1 ", "1.1", "1.1.1" usually followed by space or hyphens
-      const matchRegex = /\b(\d+(?:\.\d+)*)\s(?:[\-\–]\s)?/g;
+      const matchRegex = /\b(\d+(?:\.\d+)*)[\.\s\-–]+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g;
       
       while ((match = matchRegex.exec(contentBlock)) !== null) {
         matches.push({
