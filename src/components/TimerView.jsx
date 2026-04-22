@@ -149,7 +149,7 @@ export default function TimerView() {
     }
   };
 
-  const proceedToNextStep = () => {
+  const proceedToNextStep = async () => {
     if (!canAdvance()) {
       alert("Validação pendente de requisitos para progredir.");
       return;
@@ -165,7 +165,7 @@ export default function TimerView() {
 
     if (stepIndex + 1 >= currentSteps.length) {
       // Abre modal final integrador
-      loadMetricsData();
+      await loadMetricsData();
       setShowMetricsModal(true);
     } else {
       setStepIndex(prev => prev + 1);
@@ -173,7 +173,7 @@ export default function TimerView() {
     }
   };
 
-  const handleAdvanceClick = () => {
+  const handleAdvanceClick = async () => {
     if (!canAdvance()) {
       if (currentSteps[stepIndex]?.requiresUpload) {
         alert("Ação Requerida: Anexe sua revisão.");
@@ -182,7 +182,7 @@ export default function TimerView() {
       }
       return;
     }
-    proceedToNextStep();
+    await proceedToNextStep();
   };
 
   const handleTimerAction = () => {

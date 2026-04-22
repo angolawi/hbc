@@ -46,7 +46,7 @@ export default function EditalView() {
     }
   };
 
-  const addDiscipline = () => {
+  const addDiscipline = async () => {
     if (!newDiscName.trim()) return;
     const newDisc = {
       id: Date.now().toString(),
@@ -55,17 +55,17 @@ export default function EditalView() {
       currentPhase: 1,
       topicos: []
     };
-    saveToStorage([...disciplines, newDisc]);
+    await saveToStorage([...disciplines, newDisc]);
     setNewDiscName('');
   };
 
-  const removeDiscipline = (id) => {
+  const removeDiscipline = async (id) => {
     if (window.confirm('Tem certeza que deseja remover esta disciplina e todos os seus tópicos?')) {
-      saveToStorage(disciplines.filter(d => d.id !== id));
+      await saveToStorage(disciplines.filter(d => d.id !== id));
     }
   };
 
-  const addTopicosEmMassa = (discId, textoLote) => {
+  const addTopicosEmMassa = async (discId, textoLote) => {
     const topicosExtraidos = textoLote
       .split(/(?=\b\d+(?:\.\d+)*[\.\s\-–]+[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g)
       .map(t => t.trim())
@@ -90,20 +90,20 @@ export default function EditalView() {
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const removeTopico = (discId, topicoId) => {
+  const removeTopico = async (discId, topicoId) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, topicos: d.topicos.filter(t => t.id !== topicoId) };
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const updateTopicMetrics = (discId, topicoId, phase, field, value) => {
+  const updateTopicMetrics = async (discId, topicoId, phase, field, value) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return {
@@ -124,40 +124,40 @@ export default function EditalView() {
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const updateDisciplineCategory = (discId, newCategory) => {
+  const updateDisciplineCategory = async (discId, newCategory) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, categoria: newCategory };
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const updateDisciplinePhase = (discId, newPhase) => {
+  const updateDisciplinePhase = async (discId, newPhase) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, currentPhase: Number(newPhase) };
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const editDisciplineName = (discId, newName) => {
+  const editDisciplineName = async (discId, newName) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, nome: newName };
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const editTopicoText = (discId, topicoId, newText) => {
+  const editTopicoText = async (discId, topicoId, newText) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return {
@@ -172,10 +172,10 @@ export default function EditalView() {
       }
       return d;
     });
-    saveToStorage(updated);
+    await saveToStorage(updated);
   };
 
-  const processSmartExtract = () => {
+  const processSmartExtract = async () => {
     if (!smartText.trim()) return;
 
     let text = smartText.replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim();
