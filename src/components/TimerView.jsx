@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, Camera, Upload, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Camera, Upload, CheckCircle, Loader2 } from 'lucide-react';
+import { editalService } from '../services/api';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Select, Input } from './ui/Input';
@@ -132,15 +133,20 @@ export default function TimerView() {
     return true;
   };
 
-  const loadMetricsData = () => {
-    const rawDisc = localStorage.getItem('simpl_edital');
-    const rawWeeks = localStorage.getItem('simpl_weeks');
-    const parsedDisc = rawDisc ? JSON.parse(rawDisc) : [];
-    const parsedWeeks = rawWeeks ? JSON.parse(rawWeeks) : [];
-    setSavedDisciplines(parsedDisc);
-    setSavedWeeks(parsedWeeks);
-    if (parsedDisc.length > 0) setModalDisc(parsedDisc[0].id);
-    if (parsedWeeks.length > 0) setModalSemana(parsedWeeks[0].id);
+  const loadMetricsData = async () => {
+    try {
+        const [discData, weeksData] = await Promise.all([
+            editalService.getDisciplines(),
+            // Assuming weeks might need a service too, or stay local for now
+            JSON.parse(localStorage.getItem('simpl_weeks') || '[]')
+        ]);
+        setSavedDisciplines(discData);
+        setSavedWeeks(weeksData);
+        if (discData.length > 0) setModalDisc(discData[0].id);
+        if (weeksData.length > 0) setModalSemana(weeksData[0].id);
+    } catch (err) {
+        console.error(err);
+    }
   };
 
   const proceedToNextStep = () => {
@@ -210,67 +216,78 @@ export default function TimerView() {
     setModalTopico('');
   };
 
-  const handleSubmitMetrics = () => {
+  const handleSubmitMetrics = async () => {
     if (!modalResolvidas || !modalCertas || !modalDisc || !modalSemana) {
       alert("Preencha Disciplina, Semana, Quantidade Resolvida e Certa."); return;
     }
     
-    // Calcula tempo gasto na sessão para o Dashboard
+    // Tempo gasto
     let sessionMinutes = 0;
-    currentSteps.forEach(s => {
-       sessionMinutes += Math.floor(s.duration / 60);
-    });
-    const savedHours = localStorage.getItem('simpl_horas_estudadas');
-    const prevMins = savedHours ? parseInt(savedHours, 10) : 0;
-    localStorage.setItem('simpl_horas_estudadas', (prevMins + sessionMinutes).toString());
+    currentSteps.forEach(s => { sessionMinutes += Math.floor(s.duration / 60); });
     
-    // Motor Numérico 1 e 2 Acumulado (Tópico e Categoria Global)
-    const storedDisc = JSON.parse(localStorage.getItem('simpl_edital') || '[]');
-    const today = new Date().toISOString().split('T')[0];
-    const phaseKey = `fase${selectedPhase}`;
+    try {
+        // Get current total hours from API
+        const configRes = await fetch('/api/config/simpl_horas_estudadas');
+        const prevMinsText = await configRes.json();
+        const prevMins = prevMinsText ? parseInt(prevMinsText, 10) : 0;
+        const newTotal = prevMins + sessionMinutes;
+        
+        await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'simpl_horas_estudadas', value: newTotal })
+        });
+        localStorage.setItem('simpl_horas_estudadas', newTotal.toString());
 
-    const updatedDisc = storedDisc.map(d => {
-      if (d.id === modalDisc) {
-        // Motor 2 (Global Semanal)
-        let newWeeklyStats = { ...d.weeklyStats };
-        let curWStats = newWeeklyStats[modalSemana] || { certas: '', resolvidas: '' };
-        newWeeklyStats[modalSemana] = {
-           certas: (Number(curWStats.certas) || 0) + Number(modalCertas),
-           resolvidas: (Number(curWStats.resolvidas) || 0) + Number(modalResolvidas)
-        };
+        // Update Disciplines
+        const updatedDisc = savedDisciplines.map(d => {
+            if (d.id === modalDisc) {
+                let newWeeklyStats = { ...d.weeklyStats };
+                let curWStats = newWeeklyStats[modalSemana] || { certas: '', resolvidas: '' };
+                newWeeklyStats[modalSemana] = {
+                    certas: (Number(curWStats.certas) || 0) + Number(modalCertas),
+                    resolvidas: (Number(curWStats.resolvidas) || 0) + Number(modalResolvidas)
+                };
 
-        // Motor 1 (Micro Tópico)
-        if (modalTopico) {
-          return {
-            ...d,
-            weeklyStats: newWeeklyStats,
-            topicos: d.topicos.map(t => {
-              if (t.id === modalTopico) {
-                 let curPStats = t[phaseKey] || { certas: '', resolvidas: '', inicio: '', conclusao: '' };
-                 return {
-                   ...t,
-                   [phaseKey]: {
-                      ...curPStats,
-                      certas: (Number(curPStats.certas) || 0) + Number(modalCertas),
-                      resolvidas: (Number(curPStats.resolvidas) || 0) + Number(modalResolvidas),
-                      inicio: curPStats.inicio || today, 
-                      conclusao: today 
-                   }
-                 }
-              }
-              return t;
-            })
-          };
-        }
+                const today = new Date().toISOString().split('T')[0];
+                const phaseKey = `fase${selectedPhase}`;
 
-        return { ...d, weeklyStats: newWeeklyStats };
-      }
-      return d;
-    });
+                if (modalTopico) {
+                    return {
+                        ...d,
+                        weeklyStats: newWeeklyStats,
+                        topicos: d.topicos.map(t => {
+                            if (t.id === modalTopico) {
+                                let curPStats = t[phaseKey] || { certas: '', resolvidas: '', inicio: '', conclusao: '' };
+                                return {
+                                    ...t,
+                                    [phaseKey]: {
+                                        ...curPStats,
+                                        certas: (Number(curPStats.certas) || 0) + Number(modalCertas),
+                                        resolvidas: (Number(curPStats.resolvidas) || 0) + Number(modalResolvidas),
+                                        inicio: curPStats.inicio || today,
+                                        conclusao: today
+                                    }
+                                };
+                            }
+                            return t;
+                        })
+                    };
+                }
+                return { ...d, weeklyStats: newWeeklyStats };
+            }
+            return d;
+        });
 
-    localStorage.setItem('simpl_edital', JSON.stringify(updatedDisc));
-    alert("Dados Injetados nas Planilhas de Controle! Estatísticas atualizadas com Sucesso.");
-    handleCancelSession();
+        await editalService.syncEdital(updatedDisc);
+        localStorage.setItem('simpl_edital', JSON.stringify(updatedDisc));
+        
+        alert("Dados Sincronizados com Sucesso!");
+        handleCancelSession();
+    } catch (err) {
+        console.error(err);
+        alert("Erro ao salvar métricas no servidor.");
+    }
   };
 
   useEffect(() => {

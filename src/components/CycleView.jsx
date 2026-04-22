@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { GripVertical, AlertTriangle, AlertCircle, Info, BrainCircuit, ChevronDown, ChevronUp } from 'lucide-react';
+import { GripVertical, AlertTriangle, AlertCircle, Info, BrainCircuit, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { editalService, cycleService } from '../services/api';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -28,15 +29,28 @@ export default function CycleView({ setActiveTab }) {
   };
 
   useEffect(() => {
-    const editalData = localStorage.getItem('simpl_edital');
-    if (editalData) {
-      const parsed = JSON.parse(editalData);
-      setDisciplines(parsed.map(d => ({
-        id: d.id,
-        nome: d.nome,
-        categoria: d.categoria
-      })));
-    }
+    const fetchData = async () => {
+      try {
+        const data = await editalService.getDisciplines();
+        setDisciplines(data.map(d => ({
+          id: d.id,
+          nome: d.nome,
+          categoria: d.categoria
+        })));
+      } catch (err) {
+        console.error(err);
+        const editalData = localStorage.getItem('simpl_edital');
+        if (editalData) {
+          const parsed = JSON.parse(editalData);
+          setDisciplines(parsed.map(d => ({
+            id: d.id,
+            nome: d.nome,
+            categoria: d.categoria
+          })));
+        }
+      }
+    };
+    fetchData();
   }, []);
 
   const handleSelectDisc = (id, field, value) => {
@@ -193,22 +207,26 @@ export default function CycleView({ setActiveTab }) {
     validateFatigue(newCycle);
   };
 
-  const saveCycle = () => {
-    const existingActive = localStorage.getItem('simpl_ciclo');
-    if (existingActive) {
-      const history = JSON.parse(localStorage.getItem('simpl_ciclo_history') || '[]');
-      const newHistory = [JSON.parse(existingActive), ...history];
-      localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
+  const saveCycle = async () => {
+    try {
+        const existingCycles = await cycleService.getCycles();
+        const newHistory = [generatedCycle, ...existingCycles];
+        await cycleService.syncCycles(newHistory);
+        
+        // Local backup
+        localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
+        localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
+
+        setStep(1);
+        customAlert(
+          "Ciclo Salvo!", 
+          "Sincronizado com o servidor. Seu progresso agora está seguro.", 
+          "success"
+        );
+    } catch (err) {
+        console.error(err);
+        customAlert("Erro", "Falha ao salvar no banco de dados.", "warning");
     }
-    
-    localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
-    setStep(1); // Reset step back to initial view
-    customAlert(
-      "Ciclo Salvo com Sucesso!", 
-      "O cronômetro estará travado nesta ordem.\n\nLembre-se:\n1 - Não é um calendário semanal, é uma fila contínua.\n2 - A cada bloco, tire de 15 a 20 minutos de pausa difusa!", 
-      "success"
-    );
-    // In a real app we might redirect to timer view here.
   };
 
   const formatMins = (mins) => {

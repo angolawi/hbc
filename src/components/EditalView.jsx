@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
-import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil } from 'lucide-react';
+import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, Loader2 } from 'lucide-react';
+import { editalService } from '../services/api';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -15,29 +16,34 @@ export default function EditalView() {
   const [newDiscName, setNewDiscName] = useState('');
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
   const [smartText, setSmartText] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  // Load from local storage
+  // Load from API
   useEffect(() => {
-    const savedData = localStorage.getItem('simpl_edital');
-    if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      // Migrate old data that only had "concluido" boolean
-      const migrated = parsedData.map(d => ({
-        ...d,
-        categoria: d.categoria || 'Conhecimentos Gerais',
-        currentPhase: d.currentPhase || 1,
-        topicos: d.topicos.map(t => ({
-          ...t,
-          ...(!t.fase1 ? blankMetrics() : {})
-        }))
-      }));
-      setDisciplines(migrated);
-    }
+    const fetchData = async () => {
+      try {
+        const data = await editalService.getDisciplines();
+        setDisciplines(data);
+      } catch (err) {
+        console.error(err);
+        // Fallback to localStorage for safety during migration
+        const savedData = localStorage.getItem('simpl_edital');
+        if (savedData) setDisciplines(JSON.parse(savedData));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
-  const saveToStorage = (data) => {
+  const saveToStorage = async (data) => {
     setDisciplines(data);
-    localStorage.setItem('simpl_edital', JSON.stringify(data));
+    try {
+        await editalService.syncEdital(data);
+        localStorage.setItem('simpl_edital', JSON.stringify(data)); // Backup local
+    } catch (err) {
+        console.error("Erro ao sincronizar com servidor:", err);
+    }
   };
 
   const addDiscipline = () => {
@@ -276,7 +282,7 @@ export default function EditalView() {
       extractedDisciplines.push(currentDiscipline);
     }
     
-    saveToStorage([...disciplines, ...extractedDisciplines]);
+    await saveToStorage([...disciplines, ...extractedDisciplines]);
     setSmartText('');
     alert(`Extração Concluída com sucesso! ${extractedDisciplines.length} disciplinas identificadas.`);
   };
@@ -356,7 +362,12 @@ export default function EditalView() {
 
         {/* Lista de Disciplinas */}
         <div className="xl:col-span-2 space-y-6">
-          {disciplines.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center p-20 bg-zinc-900/40 rounded-2xl border border-zinc-800/50">
+               <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+               <p className="text-zinc-400 font-medium">Carregando seu edital...</p>
+            </div>
+          ) : disciplines.length === 0 ? (
             <div className="text-center p-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50 border-dashed">
               <GraduationCap className="mx-auto text-zinc-600 mb-4" size={48} />
               <h3 className="text-lg font-bold text-zinc-300">Seu edital está vazio</h3>

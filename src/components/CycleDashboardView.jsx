@@ -1,76 +1,64 @@
-import { useState, useEffect } from 'react';
-import { Calendar, Check, Trash } from 'lucide-react';
+import { Calendar, Check, Trash, Loader2 } from 'lucide-react';
+import { dashboardService, cycleService } from '../services/api';
 
 export default function CycleDashboardView() {
     const [instances, setInstances] = useState([]);
     const [progress, setProgress] = useState({});
     const [activeBrush, setActiveBrush] = useState(1);
 
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
-        const savedProgress = localStorage.getItem('simpl_grid_progress');
-        if (savedProgress) {
-            setProgress(JSON.parse(savedProgress));
-        }
-
-        const savedInstances = localStorage.getItem('simpl_cycle_instances');
-        if (savedInstances) {
-            setInstances(JSON.parse(savedInstances));
-        } else {
-            // Migration of old data
-            const cicloData = localStorage.getItem('simpl_ciclo');
-            let uniqueDiscs = [];
-            if (cicloData) {
-                const parsed = JSON.parse(cicloData);
-                uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
+        const fetchData = async () => {
+            try {
+                const [instData, progData] = await Promise.all([
+                    dashboardService.getInstances(),
+                    dashboardService.getProgress()
+                ]);
+                setInstances(instData);
+                setProgress(progData);
+            } catch (err) {
+                console.error(err);
+                // Fallback to local
+                const savedProgress = localStorage.getItem('simpl_grid_progress');
+                if (savedProgress) setProgress(JSON.parse(savedProgress));
+                const savedInstances = localStorage.getItem('simpl_cycle_instances');
+                if (savedInstances) setInstances(JSON.parse(savedInstances));
+            } finally {
+                setLoading(false);
             }
-
-            let hasOldProgress = false;
-            if (savedProgress) {
-                const p = JSON.parse(savedProgress);
-                if (Object.keys(p).length > 0) hasOldProgress = true;
-            }
-
-            if (uniqueDiscs.length > 0 || hasOldProgress) {
-                if (uniqueDiscs.length > 0 && !uniqueDiscs.includes("Revisão Noturna")) {
-                    uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
-                }
-
-                // Definições de datas do migrado
-                const newInst = {
-                    id: Date.now().toString(),
-                    startDate: new Date().toISOString(),
-                    disciplines: uniqueDiscs
-                };
-                setInstances([newInst]);
-                localStorage.setItem('simpl_cycle_instances', JSON.stringify([newInst]));
-            }
-        }
+        };
+        fetchData();
     }, []);
 
-    const handleCreateInstance = () => {
-        const cicloData = localStorage.getItem('simpl_ciclo');
-        let uniqueDiscs = [];
-        if (cicloData) {
-            const parsed = JSON.parse(cicloData);
-            uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
-        } else {
-            alert("Você ainda não gerou um ciclo (sem disciplinas na fila). Gere um ciclo primeiro na aba 'Criar Ciclo'.");
-            return;
+    const handleCreateInstance = async () => {
+        try {
+            const cycles = await cycleService.getCycles();
+            let uniqueDiscs = [];
+            if (cycles.length > 0) {
+                uniqueDiscs = [...new Set(cycles[0].map(b => b.nome))];
+            } else {
+                alert("Você ainda não gerou um ciclo.");
+                return;
+            }
+
+            if (!uniqueDiscs.includes("Revisão Noturna")) {
+                uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+            }
+
+            const newInst = {
+                id: Date.now().toString(),
+                startDate: new Date().toISOString(),
+                disciplines: uniqueDiscs
+            };
+
+            await dashboardService.saveInstance(newInst);
+            const updated = [newInst, ...instances];
+            setInstances(updated);
+            localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
+        } catch (err) {
+            console.error(err);
         }
-
-        if (!uniqueDiscs.includes("Revisão Noturna")) {
-            uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
-        }
-
-        const newInst = {
-            id: Date.now().toString(),
-            startDate: new Date().toISOString(),
-            disciplines: uniqueDiscs
-        };
-
-        const updated = [newInst, ...instances]; // Newest first
-        setInstances(updated);
-        localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
     };
 
     const handleRemoveInstance = (id) => {
@@ -81,7 +69,7 @@ export default function CycleDashboardView() {
         }
     };
 
-    const handleCellClick = (discName, dateStr) => {
+    const handleCellClick = async (discName, dateStr) => {
         const key = `${discName}_${dateStr}`;
         const currentStatus = progress[key] || 0;
 
@@ -102,7 +90,12 @@ export default function CycleDashboardView() {
         }
 
         setProgress(newProgress);
-        localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
+        try {
+            await dashboardService.syncProgress(newProgress);
+            localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const getCellAppearance = (status, isWeekend) => {

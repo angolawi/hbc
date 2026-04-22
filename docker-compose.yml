@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: hbc_db
+    restart: always
+    environment:
+      POSTGRES_USER: user_hbc
+      POSTGRES_PASSWORD: password_hbc
+      POSTGRES_DB: hbc_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: 
+      context: ./server
+    container_name: hbc_api
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://user_hbc:password_hbc@db:5432/hbc_db
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    restart: always
+
+  web:
+    build:
+      context: .
+    container_name: hbc_web
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: always
+
+volumes:
+  postgres_data:

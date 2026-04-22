@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, Loader2 } from 'lucide-react';
+import { cycleService } from '../services/api';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -13,16 +14,40 @@ export default function ActiveCycleView({ setActiveTab }) {
   const [inactiveCycles, setInactiveCycles] = useState([]);
 
   useEffect(() => {
-    const active = localStorage.getItem('simpl_ciclo');
-    if (active) {
-      setActiveCycle(JSON.parse(active));
-    }
-
-    const history = localStorage.getItem('simpl_ciclo_history');
-    if (history) {
-      setInactiveCycles(JSON.parse(history));
-    }
+    const fetchData = async () => {
+        try {
+            const history = await cycleService.getCycles();
+            if (history.length > 0) {
+                setActiveCycle(history[0]);
+                setInactiveCycles(history.slice(1));
+            }
+        } catch (err) {
+            console.error(err);
+            // Fallback
+            const active = localStorage.getItem('simpl_ciclo');
+            if (active) setActiveCycle(JSON.parse(active));
+            const historyLocal = localStorage.getItem('simpl_ciclo_history');
+            if (historyLocal) setInactiveCycles(JSON.parse(historyLocal));
+        }
+    };
+    fetchData();
   }, []);
+
+  const deleteCycle = async (cycleIdx, isHistory = true) => {
+    if (!window.confirm("Deseja realmente apagar este ciclo?")) return;
+    
+    let newHistory = isHistory ? [...inactiveCycles] : [];
+    if (isHistory) {
+        newHistory.splice(cycleIdx, 1);
+        setInactiveCycles(newHistory);
+    } else {
+        setActiveCycle(null);
+    }
+    
+    // Sync back
+    const full = activeCycle && !isHistory ? newHistory : [activeCycle, ...newHistory].filter(Boolean);
+    await cycleService.syncCycles(full);
+  };
 
   const formatMins = (mins) => {
     const h = Math.floor(mins / 60);
@@ -66,12 +91,7 @@ export default function ActiveCycleView({ setActiveTab }) {
               <BrainCircuit className="text-indigo-400" />
               Ciclo Em Andamento
             </h2>
-            <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => {
-              if (window.confirm("Deseja realmente apagar o ciclo atual?")) {
-                localStorage.removeItem('simpl_ciclo');
-                setActiveCycle(null);
-              }
-            }}>
+            <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => deleteCycle(0, false)}>
               Apagar Ciclo Atual
             </Button>
           </div>
@@ -122,14 +142,7 @@ export default function ActiveCycleView({ setActiveTab }) {
                   <BrainCircuit className="text-zinc-500" />
                   Ciclo Anterior {cycleIdx === 0 && "(Último)"}
                 </h2>
-                <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => {
-                  if (window.confirm("Deseja realmente apagar este ciclo do histórico?")) {
-                    const newHistory = [...inactiveCycles];
-                    newHistory.splice(cycleIdx, 1);
-                    localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
-                    setInactiveCycles(newHistory);
-                  }
-                }}>
+                <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => deleteCycle(cycleIdx, true)}>
                   Excluir do Histórico
                 </Button>
               </div>
