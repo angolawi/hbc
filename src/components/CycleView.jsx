@@ -13,6 +13,7 @@ const TAGS = {
 export default function CycleView() {
   const [step, setStep] = useState(1);
   const [disciplines, setDisciplines] = useState([]);
+  const [activeCycle, setActiveCycle] = useState(null);
   const [selectedDiscs, setSelectedDiscs] = useState({});
   const [maxBlockTime, setMaxBlockTime] = useState(120); // default 2h
   
@@ -35,6 +36,11 @@ export default function CycleView() {
         nome: d.nome,
         categoria: d.categoria
       })));
+    }
+    
+    const active = localStorage.getItem('simpl_ciclo');
+    if (active) {
+      setActiveCycle(JSON.parse(active));
     }
   }, []);
 
@@ -194,6 +200,8 @@ export default function CycleView() {
 
   const saveCycle = () => {
     localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
+    setActiveCycle(generatedCycle);
+    setStep(1); // Reset step back to initial view after saving
     customAlert(
       "Ciclo Salvo com Sucesso!", 
       "O cronômetro estará travado nesta ordem.\n\nLembre-se:\n1 - Não é um calendário semanal, é uma fila contínua.\n2 - A cada bloco, tire de 15 a 20 minutos de pausa difusa!", 
@@ -221,6 +229,51 @@ export default function CycleView() {
           <p className="text-zinc-400 text-sm font-medium mt-1">Gere sua fila contínua com otimização e alternância cognitiva.</p>
         </div>
       </header>
+
+      {activeCycle && activeCycle.length > 0 && (
+        <div className="mb-8 p-6 bg-indigo-900/10 border border-indigo-500/30 rounded-2xl">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-indigo-400 flex items-center gap-2">
+              <BrainCircuit className="text-indigo-400" />
+              Ciclo Atual Ativo
+            </h2>
+            <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => {
+              if (window.confirm("Deseja realmente apagar o ciclo atual?")) {
+                localStorage.removeItem('simpl_ciclo');
+                setActiveCycle(null);
+              }
+            }}>
+              Apagar Ciclo Atual
+            </Button>
+          </div>
+          <p className="text-zinc-400 text-sm mb-4">Esta é a sua fila de estudos. Ela guiará a ordem das disciplinas no cronômetro.</p>
+          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+            {activeCycle.map((block, idx) => {
+              const tagInfo = TAGS[block.tag] || { label: 'Desconhecido', icon: '❓', color: 'text-zinc-400 border-zinc-700' };
+              return (
+                <div key={`active-${block.uid}-${idx}`} className="bg-zinc-900 border border-zinc-700/50 rounded-xl p-4 min-w-[220px] flex-shrink-0 flex flex-col justify-between shadow-md">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold border border-indigo-500/30">
+                        {idx + 1}
+                      </span>
+                      <h4 className="font-bold text-zinc-100 text-sm truncate" title={block.nome}>{block.nome}</h4>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tagInfo.color} inline-block`}>
+                        {tagInfo.icon} {tagInfo.label}
+                    </span>
+                  </div>
+                  <div className="text-right mt-4 pt-4 border-t border-zinc-800">
+                    <span className="font-mono font-bold text-indigo-400 text-sm">
+                      {formatMins(block.duration)}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {step === 1 && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
