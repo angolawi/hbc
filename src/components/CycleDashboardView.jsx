@@ -42,9 +42,15 @@ export default function CycleDashboardView() {
       const key = `${discName}_${dateStr}`;
       const currentStatus = progress[key] || 0;
       
-      let nextStatus = activeBrush;
-      if (currentStatus === activeBrush) {
-          nextStatus = 0; // Desmarcar se clicar na mesma cor
+      let nextStatus;
+
+      if (discName.includes("Revisão")) {
+          nextStatus = currentStatus === 'X' ? 0 : 'X';
+      } else {
+          nextStatus = activeBrush;
+          if (currentStatus === activeBrush) {
+              nextStatus = 0; // Desmarcar se clicar na mesma cor
+          }
       }
 
       const newProgress = { ...progress, [key]: nextStatus };
@@ -147,7 +153,7 @@ export default function CycleDashboardView() {
                                                 onClick={() => handleCellClick(disc, dateStr)}
                                                 className={`p-0 border-b border-r border-zinc-800/50 cursor-pointer transition-colors w-6 h-6 min-w-[24px] max-w-[24px] text-center align-middle hover:brightness-125 ${getCellAppearance(status, isWeekend)}`}
                                             >
-                                                {/* Cores sólidas sem exibição de número interno */}
+                                                {status === 'X' && <span className="text-zinc-500 font-bold text-xs select-none">X</span>}
                                             </td>
                                         );
                                     })}
