@@ -34,19 +34,19 @@ export default function WeeklyStatsView() {
     }
   }, []);
 
-  const saveDisciplines = (data) => {
+  const saveDisciplines = async (data) => {
     setDisciplines(data);
     localStorage.setItem('simpl_edital', JSON.stringify(data));
-    pushData('simpl_edital', data);
+    await pushData('simpl_edital', data);
   };
 
-  const saveWeeks = (data) => {
+  const saveWeeks = async (data) => {
     setWeeks(data);
     localStorage.setItem('simpl_weeks', JSON.stringify(data));
-    pushData('simpl_weeks', data);
+    await pushData('simpl_weeks', data);
   };
 
-  const addWeek = () => {
+  const addWeek = async () => {
     let baseDateStr = '';
 
     if (weeks.length > 0) {
@@ -76,18 +76,18 @@ export default function WeeklyStatsView() {
       baseDate: baseDateStr
     };
     
-    saveWeeks([...weeks, novaSb]);
+    await saveWeeks([...weeks, novaSb]);
     setNewWeekName('');
   };
 
   const removeWeek = async (id) => {
     const confirmed = await confirm("Remover esta semana? Isso não apaga os dados já digitados, mas esconderá a coluna.", { variant: 'danger' });
     if (confirmed) {
-      saveWeeks(weeks.filter(w => w.id !== id));
+      await saveWeeks(weeks.filter(w => w.id !== id));
     }
   };
 
-  const handleStatChange = (discId, weekId, field, value) => {
+  const handleStatChange = async (discId, weekId, field, value) => {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return {

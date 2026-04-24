@@ -191,7 +191,7 @@ export default function CycleView({ setActiveTab }) {
     validateFatigue(newCycle);
   };
 
-  const saveCycle = () => {
+  const saveCycle = async () => {
     const existingActive = localStorage.getItem('simpl_ciclo');
     if (existingActive) {
       const history = JSON.parse(localStorage.getItem('simpl_ciclo_history') || '[]');
@@ -200,7 +200,7 @@ export default function CycleView({ setActiveTab }) {
     }
     
     localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
-    pushData('simpl_ciclo', generatedCycle);
+    await pushData('simpl_ciclo', generatedCycle);
     setStep(1); // Reset step back to initial view
     alert("Ciclo Salvo com Sucesso! O cronômetro estará travado nesta ordem.", "success");
     if (setActiveTab) setActiveTab('ciclo');

@@ -206,7 +206,7 @@ export default function TimerView() {
     localStorage.removeItem(TIMER_STORAGE_KEY);
   };
 
-  const handleSubmitMetrics = () => {
+  const handleSubmitMetrics = async () => {
     if (!modalResolvidas || !modalCertas || !modalDisc || !modalSemana) {
       alert("Preencha Disciplina, Semana, Quantidade Resolvida e Certa.", "error"); return;
     }
@@ -265,8 +265,8 @@ export default function TimerView() {
     });
 
     localStorage.setItem('simpl_edital', JSON.stringify(updatedDisc));
-    pushData('simpl_edital', updatedDisc);
-    pushData('simpl_horas_estudadas', prevMins + sessionMinutes);
+    await pushData('simpl_edital', updatedDisc);
+    await pushData('simpl_horas_estudadas', prevMins + sessionMinutes);
 
     // --- INTEGRATION: Cycle Progression ---
     const activeCycleRaw = localStorage.getItem('simpl_ciclo');
@@ -291,7 +291,7 @@ export default function TimerView() {
         }
 
         localStorage.setItem('simpl_ciclo', JSON.stringify(cycle));
-        pushData('simpl_ciclo', cycle);
+        await pushData('simpl_ciclo', cycle);
       } catch (e) {
         console.error("Failed to update cycle progress", e);
       }

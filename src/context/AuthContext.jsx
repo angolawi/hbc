@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabase';
-import { pullAllData } from '../utils/dataSync';
+import { pullAllData, SYNC_KEYS } from '../utils/dataSync';
 
 const AuthContext = createContext({});
 
@@ -19,7 +19,11 @@ export const AuthProvider = ({ children }) => {
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         setSession(session);
-        setUser(session?.user ?? null);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+           pullAllData(); // Trigger initial sync
+        }
         clearTimeout(safetyTimer);
         setLoading(false);
       })
@@ -81,7 +85,11 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = (email, password) => supabase.auth.signUp({ email, password });
   const login = (email, password) => supabase.auth.signInWithPassword({ email, password });
-  const logout = () => supabase.auth.signOut();
+  const logout = async () => {
+    await supabase.auth.signOut();
+    // Clear study data from localStorage to prevent leakage
+    SYNC_KEYS.forEach(key => localStorage.removeItem(key));
+  };
 
   const value = {
     user,
