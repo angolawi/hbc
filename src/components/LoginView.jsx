@@ -23,12 +23,12 @@ export default function LoginView() {
 
     setLoading(true);
     try {
-      const { error } = isLogin 
+      const { error } = isLogin
         ? await login(email, password)
         : await signUp(email, password);
 
       if (error) throw error;
-      
+
       if (!isLogin) {
         alert('Conta criada! Verifique seu e-mail para confirmar (se habilitado) ou faça login.', 'success');
         setIsLogin(true);
@@ -51,20 +51,20 @@ export default function LoginView() {
           <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 mb-6 group transition-all hover:bg-indigo-600/20">
             <Brain className="text-indigo-400 group-hover:scale-110 transition-transform duration-300" size={40} />
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-white mb-2">SIMPL <span className="text-indigo-400">HBC</span></h1>
+          <h1 className="text-4xl font-extrabold tracking-tight text-white mb-2">Camada 3 <span className="text-indigo-400">HBC</span></h1>
           <p className="text-zinc-500 text-sm font-medium">Sua aprovação começa com foco absoluto.</p>
         </header>
 
         <Card className="p-1 bg-zinc-900/50 backdrop-blur-xl border-zinc-800/50 rounded-3xl overflow-hidden shadow-2xl">
           <div className="p-8">
             <div className="flex bg-zinc-950/50 p-1 rounded-xl mb-8 border border-zinc-800">
-              <button 
+              <button
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${isLogin ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                 Login
               </button>
-              <button 
+              <button
                 onClick={() => setIsLogin(false)}
                 className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${!isLogin ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
@@ -105,10 +105,10 @@ export default function LoginView() {
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                fullWidth 
-                size="lg" 
+              <Button
+                type="submit"
+                fullWidth
+                size="lg"
                 disabled={loading}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white border-0 shadow-xl shadow-indigo-900/40 h-14 rounded-2xl text-sm font-black tracking-widest uppercase mt-4 flex items-center justify-center gap-2"
               >
@@ -123,12 +123,12 @@ export default function LoginView() {
               </Button>
             </form>
           </div>
-          
+
           <div className="p-6 bg-zinc-950/50 border-t border-zinc-800/50 text-center">
             <p className="text-zinc-600 text-[10px] uppercase font-bold tracking-tighter">
               {isLogin ? 'Novo por aqui?' : 'Já possui conta?'}
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsLogin(!isLogin)}
                 className="ml-2 text-indigo-400 hover:text-indigo-300 transition-colors"
               >
@@ -137,12 +137,12 @@ export default function LoginView() {
             </p>
           </div>
         </Card>
-        
+
         <footer className="mt-12 text-center">
-            <p className="text-zinc-800 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-                <Rocket size={12} className="text-zinc-800" />
-                Powered by High Performance Protocol
-            </p>
+          <p className="text-zinc-800 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+            <Rocket size={12} className="text-zinc-800" />
+            Powered by High Performance Protocol
+          </p>
         </footer>
       </div>
     </div>
