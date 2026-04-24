@@ -4,21 +4,19 @@ import { useNotification } from '../context/NotificationContext';
 
 export default function CycleDashboardView() {
     const { alert, confirm } = useNotification();
-    const [instances, setInstances] = useState([]);
-    const [progress, setProgress] = useState({});
+    const [instances, setInstances] = useState(() => {
+        const saved = localStorage.getItem('simpl_cycle_instances');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [progress, setProgress] = useState(() => {
+        const saved = localStorage.getItem('simpl_grid_progress');
+        return saved ? JSON.parse(saved) : {};
+    });
     const [activeBrush, setActiveBrush] = useState(1);
 
     useEffect(() => {
-        const savedProgress = localStorage.getItem('simpl_grid_progress');
-        if (savedProgress) {
-            setProgress(JSON.parse(savedProgress));
-        }
-
-        const savedInstances = localStorage.getItem('simpl_cycle_instances');
-        if (savedInstances) {
-            setInstances(JSON.parse(savedInstances));
-        } else {
-            // Migration of old data
+        // Migration logic for old data if no instances exist
+        if (instances.length === 0) {
             const cicloData = localStorage.getItem('simpl_ciclo');
             let uniqueDiscs = [];
             if (cicloData) {
@@ -26,9 +24,10 @@ export default function CycleDashboardView() {
                 uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
             }
 
+            const savedProgressStr = localStorage.getItem('simpl_grid_progress');
             let hasOldProgress = false;
-            if (savedProgress) {
-                const p = JSON.parse(savedProgress);
+            if (savedProgressStr) {
+                const p = JSON.parse(savedProgressStr);
                 if (Object.keys(p).length > 0) hasOldProgress = true;
             }
 
@@ -37,7 +36,6 @@ export default function CycleDashboardView() {
                     uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
                 }
 
-                // Definições de datas do migrado
                 const newInst = {
                     id: Date.now().toString(),
                     startDate: new Date().toISOString(),

@@ -4,6 +4,7 @@ import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Select, Input } from './ui/Input';
+import { Clock, BookOpen, Target, TrendingUp, Brain, Flame, Minus, Plus } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 
 const getPhaseWorkflows = (phase, repriseTime, estudoTime, aplicacaoTime, revisaoTime, descansoTime) => {
@@ -74,6 +75,14 @@ export default function TimerView() {
     return `${m}:${s}`;
   };
 
+  const timeOptions = [0, 3, 5, 10, 15, 20, 30, 40, 45, 60, 90];
+
+  const adjustTime = (current, setter, delta) => {
+    const currentIndex = timeOptions.indexOf(current);
+    const nextIndex = Math.max(0, Math.min(timeOptions.length - 1, currentIndex + delta));
+    setter(timeOptions[nextIndex]);
+  };
+
   const playAlarm = () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -93,8 +102,7 @@ export default function TimerView() {
     }
   };
 
-  const handlePhaseChange = (e) => {
-    const phase = e.target.value;
+  const handlePhaseChange = (phase) => {
     setSelectedPhase(phase);
     if (phase === "1") {
       setRepriseTime(3); setEstudoTime(45); setAplicacaoTime(10); setRevisaoTime(5); setDescansoTime(15);
@@ -310,59 +318,112 @@ export default function TimerView() {
     return (
       <section className="animate-in fade-in slide-in-from-bottom-2 duration-500 p-8 flex flex-col min-h-screen bg-zinc-950 items-center justify-center">
         <header className="mb-10 flex flex-col items-center">
-          <h1 className="text-5xl font-bold mb-4 tracking-tight py-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Cronômetro GA</h1>
+          <h1 className="text-5xl font-bold mb-4 tracking-tight py-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Cronômetro</h1>
           <p className="text-zinc-500 text-sm max-w-lg text-center">Configure sua sessão de alto desempenho.</p>
         </header>
 
-        <Card className="max-w-xl p-10 w-full bg-zinc-900 border-zinc-800 shadow-2xl">
-          <h3 className="text-xl font-semibold mb-8 tracking-tight text-zinc-100 border-b border-zinc-800 pb-4">Setup de Sessão</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="col-span-full">
-              <label className="block text-zinc-400 font-medium text-sm mb-2">Fase de Estudo (Workflow)</label>
-              <select
-                value={selectedPhase}
-                onChange={handlePhaseChange}
-                className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
-              >
-                <option value="1">Fase 1 </option>
-                <option value="2">Fase 2 </option>
-                <option value="3">Fase 3 </option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-zinc-400 font-medium text-sm mb-2">Reprise (min)</label>
-              <select value={repriseTime} onChange={e => setRepriseTime(Number(e.target.value))} className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-                {[0, 3, 5, 10, 15, 20, 30, 40, 45, 60].map(val => <option key={val} value={val}>{val} min</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-zinc-400 font-medium text-sm mb-2">Estudo (min)</label>
-              <select value={estudoTime} onChange={e => setEstudoTime(Number(e.target.value))} className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-                {[0, 3, 5, 10, 15, 20, 30, 40, 45, 60].map(val => <option key={val} value={val}>{val} min</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-zinc-400 font-medium text-sm mb-2">Aplicação (min)</label>
-              <select value={aplicacaoTime} onChange={e => setAplicacaoTime(Number(e.target.value))} className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-                {[0, 3, 5, 10, 15, 20, 30, 40, 45, 60].map(val => <option key={val} value={val}>{val} min</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-zinc-400 font-medium text-sm mb-2">Revisão (min)</label>
-              <select value={revisaoTime} onChange={e => setRevisaoTime(Number(e.target.value))} className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-                {[0, 3, 5, 10, 15, 20, 30, 40, 45, 60].map(val => <option key={val} value={val}>{val} min</option>)}
-              </select>
-            </div>
-            <div className="col-span-full">
-              <label className="block text-zinc-400 font-medium text-sm mb-2">Descanso (min)</label>
-              <select value={descansoTime} onChange={e => setDescansoTime(Number(e.target.value))} className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-                {[0, 3, 5, 10, 15, 20, 30, 40, 45, 60].map(val => <option key={val} value={val}>{val} min</option>)}
-              </select>
-            </div>
+        <Card className="max-w-2xl p-1 w-full bg-zinc-900 border-zinc-800 shadow-2xl rounded-3xl">
+          <div className="p-8 border-b border-zinc-800/50">
+            <h3 className="text-xl font-bold tracking-tight text-zinc-100 italic">Setup da Sessão</h3>
+            <p className="text-zinc-500 text-xs uppercase tracking-widest font-black mt-1 mt-2">Selecione a fase de estudo e ajuste os tempos se necessário</p>
           </div>
-          <Button fullWidth size="lg" onClick={handleStartSession} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white border-0 shadow-lg shadow-indigo-900/20">
-            Iniciar Relógio
-          </Button>
+
+          <div className="p-8">
+            <div className="mb-10 text-left">
+              <label className="block text-zinc-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-4 text-center md:text-left">Escolha sua Fase de Estudo</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { id: '1', title: 'Fase 1', desc: 'Teoria e Base', icon: '📝', bgIcon: BookOpen, info: 'Foco em entender a teoria e produzir seu primeiro resumo.' },
+                  { id: '2', title: 'Fase 2', desc: 'Consolidação', icon: '🧠', bgIcon: Brain, info: 'Foco em resolução de questões e refinamento do resumo.' },
+                  { id: '3', title: 'Fase 3', desc: 'Intensidade', icon: '🔥', bgIcon: Flame, info: 'Foco em simulados, velocidade e fechar lacunas específicas.' }
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handlePhaseChange(p.id)}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all relative group/phase ${selectedPhase === p.id ? 'bg-indigo-600/10 border-indigo-500' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'}`}
+                  >
+                    {/* Clipping container for BG icon */}
+                    <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                       <div className={`absolute -right-2 -top-2 opacity-5 group-hover/phase:opacity-10 transition-all duration-500 z-10 ${selectedPhase === p.id ? 'opacity-15 -rotate-12 scale-110' : 'rotate-12'}`}>
+                        <p.bgIcon size={72} className={selectedPhase === p.id ? 'text-indigo-400' : 'text-zinc-400'} />
+                      </div>
+                    </div>
+
+                    {/* Tooltip */}
+                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 bg-indigo-600 text-white text-[10px] font-bold p-2 rounded-lg opacity-0 group-hover/phase:opacity-100 pointer-events-none transition-all duration-300 transform translate-y-2 group-hover/phase:translate-y-0 z-50 text-center shadow-xl shadow-indigo-900/40">
+                      {p.info}
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-600 rotate-45"></div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 relative z-20">
+                      <span className="text-xl mb-1">{p.icon}</span>
+                      <span className={`font-black text-sm uppercase tracking-tighter ${selectedPhase === p.id ? 'text-indigo-400' : 'text-zinc-400'}`}>{p.title}</span>
+                      <span className="text-[10px] font-medium text-zinc-500 group-hover/phase:text-zinc-400 transition-colors">{p.desc}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-10 text-left">
+              <label className="block text-zinc-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-4 text-center md:text-left">Personalização do Tempo (minutos)</label>
+              <div className="flex flex-wrap justify-center md:justify-start gap-4">
+                {[
+                  { label: 'Reprise', val: repriseTime, set: setRepriseTime, icon: <Clock size={14} />, info: 'Recordação rápida do que foi visto no estudo anterior.' },
+                  { label: 'Estudo', val: estudoTime, set: setEstudoTime, icon: <BookOpen size={14} />, info: 'Fase de absorção e criação de material próprio.' },
+                  { label: 'Questões', val: aplicacaoTime, set: setAplicacaoTime, icon: <Target size={14} />, info: 'Aplicação prática e teste de conhecimento.' },
+                  { label: 'Revisão', val: revisaoTime, set: setRevisaoTime, icon: <TrendingUp size={14} />, info: 'Recordação ativa do material produzido hoje.' },
+                  { label: 'Descanso', val: descansoTime, set: setDescansoTime, icon: <Zap size={14} />, info: 'Pausa necessária para consolidação da memória.' }
+                ].map((field, fIdx) => (
+                  <div key={fIdx} className="bg-zinc-950/50 border border-zinc-800/80 p-4 rounded-2xl flex flex-col gap-4 group/card transition-all hover:border-indigo-500/30 w-full sm:w-[calc(50%-1rem)] lg:w-[calc(20%-1rem)] min-w-[140px] relative">
+                    {/* Clipping container for BG icon */}
+                    <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none opacity-20">
+                    </div>
+                    
+                    {/* Tooltip */}
+                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 bg-indigo-600 text-white text-[10px] font-bold p-2 rounded-lg opacity-0 group-hover/card:opacity-100 pointer-events-none transition-all duration-300 transform translate-y-2 group-hover/card:translate-y-0 z-50 text-center shadow-xl shadow-indigo-900/40">
+                      {field.info}
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-600 rotate-45"></div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{field.label}</span>
+                      <div className="text-zinc-600 opacity-50 group-hover/card:opacity-100 transition-opacity">
+                        {field.icon}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-zinc-900/80 rounded-xl p-1 border border-zinc-800">
+                      <button
+                        onClick={() => adjustTime(field.val, field.set, -1)}
+                        className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all disabled:opacity-20"
+                        disabled={field.val === timeOptions[0]}
+                      >
+                        <Minus size={16} />
+                      </button>
+
+                      <div className="flex flex-col items-center">
+                        <span className="text-lg font-black text-zinc-100 tabular-nums">{field.val}</span>
+                        <span className="text-[8px] font-bold text-zinc-500 uppercase -mt-1">min</span>
+                      </div>
+
+                      <button
+                        onClick={() => adjustTime(field.val, field.set, 1)}
+                        className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all disabled:opacity-20"
+                        disabled={field.val === timeOptions[timeOptions.length - 1]}
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button fullWidth size="lg" onClick={handleStartSession} className="bg-indigo-600 hover:bg-indigo-500 text-white border-0 shadow-xl shadow-indigo-900/40 h-14 rounded-2xl text-lg font-black tracking-wider uppercase">
+              Iniciar Sessão de Estudos
+            </Button>
+          </div>
         </Card>
       </section>
     );
@@ -447,7 +508,7 @@ export default function TimerView() {
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100 mb-1">Fase {selectedPhase} — Protocolo Deep Focus</h1>
           <p className="text-indigo-400 text-sm font-medium">Bloqueio Atencional Ativado. Abstraia do mundo agora.</p>
         </div>
-        <Button variant="danger" size="sm" onClick={async () => { 
+        <Button variant="danger" size="sm" onClick={async () => {
           const confirmed = await confirm("Abortar e perder todo o progresso do cronômetro?", { variant: 'danger', title: 'Abortar Sessão' });
           if (confirmed) handleCancelSession();
         }}>
@@ -517,7 +578,7 @@ export default function TimerView() {
                 <Zap size={16} />
                 <span className="text-xs font-bold uppercase tracking-tight">Beta</span>
               </button>
-              <button 
+              <button
                 onClick={() => handleNoiseToggle('rain')}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${activeNoise === 'rain' ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
               >
