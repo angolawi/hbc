@@ -4,6 +4,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { GripVertical, AlertTriangle, AlertCircle, Info, BrainCircuit, ChevronDown, ChevronUp } from 'lucide-react';
+import { pushData } from '../utils/dataSync';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -199,6 +200,7 @@ export default function CycleView({ setActiveTab }) {
     }
     
     localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
+    pushData('simpl_ciclo', generatedCycle);
     setStep(1); // Reset step back to initial view
     alert("Ciclo Salvo com Sucesso! O cronômetro estará travado nesta ordem.", "success");
     if (setActiveTab) setActiveTab('ciclo');

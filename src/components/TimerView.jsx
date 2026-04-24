@@ -7,6 +7,7 @@ import { Select, Input } from './ui/Input';
 import { Clock, BookOpen, Target, TrendingUp, Brain, Flame, Minus, Plus } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 import { getPhaseWorkflows, formatTime, TIMER_STORAGE_KEY, calculateRemainingTime } from '../utils/timerUtils';
+import { pushData } from '../utils/dataSync';
 
 
 export default function TimerView() {
@@ -264,6 +265,39 @@ export default function TimerView() {
     });
 
     localStorage.setItem('simpl_edital', JSON.stringify(updatedDisc));
+    pushData('simpl_edital', updatedDisc);
+    pushData('simpl_horas_estudadas', prevMins + sessionMinutes);
+
+    // --- INTEGRATION: Cycle Progression ---
+    const activeCycleRaw = localStorage.getItem('simpl_ciclo');
+    if (activeCycleRaw) {
+      try {
+        let cycle = JSON.parse(activeCycleRaw);
+        // Mark the first non-completed matching discipline
+        let found = false;
+        for (let i = 0; i < cycle.length; i++) {
+          if (cycle[i].id === modalDisc && !cycle[i].completed) {
+            cycle[i].completed = true;
+            found = true;
+            break;
+          }
+        }
+
+        // Check if full cycle reached
+        const allCompleted = cycle.every(block => block.completed);
+        if (allCompleted) {
+          cycle = cycle.map(b => ({ ...b, completed: false }));
+          alert("Ciclo Completo! Reiniciando sua trilha de estudos.", "success");
+        }
+
+        localStorage.setItem('simpl_ciclo', JSON.stringify(cycle));
+        pushData('simpl_ciclo', cycle);
+      } catch (e) {
+        console.error("Failed to update cycle progress", e);
+      }
+    }
+    // ---------------------------------------
+
     alert("Dados Injetados nas Planilhas de Controle! Estatísticas atualizadas com Sucesso.", "success");
     handleCancelSession();
   };

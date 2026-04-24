@@ -4,6 +4,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
 import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil } from 'lucide-react';
+import { pushData } from '../utils/dataSync';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -40,6 +41,7 @@ export default function EditalView() {
   const saveToStorage = (data) => {
     setDisciplines(data);
     localStorage.setItem('simpl_edital', JSON.stringify(data));
+    pushData('simpl_edital', data);
   };
 
   const addDiscipline = () => {
