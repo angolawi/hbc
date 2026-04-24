@@ -34,7 +34,7 @@ export default function CycleView({ setActiveTab }) {
         setLoading(true);
         const data = await pullAllData(user, selectedMentee.id);
         const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
-        setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria })));
+        setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria, tag: d.tag })));
         setLoading(false);
       } else {
         const editalData = localStorage.getItem('simpl_edital');
@@ -43,7 +43,8 @@ export default function CycleView({ setActiveTab }) {
           setDisciplines(parsed.map(d => ({
             id: d.id,
             nome: d.nome,
-            categoria: d.categoria
+            categoria: d.categoria,
+            tag: d.tag
           })));
         }
       }
@@ -67,9 +68,10 @@ export default function CycleView({ setActiveTab }) {
       delete copy[id];
       setSelectedDiscs(copy);
     } else {
+      const disc = disciplines.find(d => d.id === id);
       setSelectedDiscs(prev => ({
         ...prev,
-        [id]: { nome, id, tag: '', weight: 120 } // default 2 hours per disc in cycle
+        [id]: { nome, id, tag: disc?.tag || '', weight: 120 } 
       }));
     }
   };
