@@ -30,27 +30,33 @@ export default function CycleView({ setActiveTab }) {
 
   useEffect(() => {
     const loadEdital = async () => {
-      if (selectedMentee) {
-        setLoading(true);
-        const data = await pullAllData(user, selectedMentee.id);
-        const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
-        setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria, tag: d.tag })));
-        setLoading(false);
-      } else {
-        const editalData = localStorage.getItem('simpl_edital');
-        if (editalData) {
-          const parsed = JSON.parse(editalData);
-          setDisciplines(parsed.map(d => ({
-            id: d.id,
-            nome: d.nome,
-            categoria: d.categoria,
-            tag: d.tag
-          })));
+      setLoading(true);
+      try {
+        if (selectedMentee) {
+          const data = await pullAllData(user, selectedMentee.id);
+          const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
+          setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria, tag: d.tag })));
+        } else {
+          // Busca do localStorage mas garante parse seguro
+          const editalData = localStorage.getItem('simpl_edital');
+          if (editalData) {
+            const parsed = JSON.parse(editalData);
+            setDisciplines(parsed.map(d => ({
+              id: d.id,
+              nome: d.nome,
+              categoria: d.categoria,
+              tag: d.tag
+            })));
+          }
         }
+      } catch (e) {
+        console.error("Erro ao carregar edital para ciclo:", e);
+      } finally {
+        setLoading(false);
       }
     };
     loadEdital();
-  }, [selectedMentee, user]);
+  }, [selectedMentee, user, step]); // Adicionado 'step' para atualizar ao navegar entre passos
 
   const handleSelectDisc = (id, field, value) => {
     setSelectedDiscs(prev => ({

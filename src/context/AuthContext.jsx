@@ -51,21 +51,29 @@ export const AuthProvider = ({ children }) => {
 
   const initializeUser = async (currSession) => {
     const currUser = currSession?.user ?? null;
-    setUser(currUser);
-    setSession(currSession);
-
+    
     if (currUser) {
+      // Define o usuário e a sessão imediatamente
+      setUser(currUser);
+      setSession(currSession);
+      
       try {
         const isMentorRole = await fetchProfile(currUser.id);
         setIsMentor(isMentorRole);
         setupRealtime(currUser.id);
-        await pullAllData(currUser);
+        
+        // LIBERA A TELA AQUI: O usuário entra no app
+        setLoading(false);
+        
+        // Sincronização pesada em background (não bloqueia a UI)
+        pullAllData(currUser).catch(err => console.error("Sync background error:", err));
       } catch (e) {
         console.error("Initialization error:", e);
-      } finally {
         setLoading(false);
       }
     } else {
+      setUser(null);
+      setSession(null);
       setLoading(false);
     }
   };
@@ -99,11 +107,27 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = async () => {
-    if (user) await smartSync(user);
-    await supabase.auth.signOut();
-    SYNC_KEYS.forEach(key => localStorage.removeItem(key));
-    localStorage.removeItem('is_mentor_dev');
-    window.location.href = '/'; // Garante limpeza total
+    try {
+      if (user) await smartSync(user);
+      
+      // Limpa estados localmente para feedback instantâneo no UI
+      setUser(null);
+      setSession(null);
+      setIsMentor(false);
+      setSelectedMentee(null);
+      
+      await supabase.auth.signOut();
+      
+      // Limpa dados sensíveis do localStorage
+      SYNC_KEYS.forEach(key => localStorage.removeItem(key));
+      localStorage.removeItem('is_mentor_dev');
+      
+      // Recarrega para garantir que nenhum cache de memória persista
+      window.location.replace('/');
+    } catch (e) {
+      console.error("Erro ao deslogar:", e);
+      window.location.replace('/');
+    }
   };
 
   const value = {
@@ -120,7 +144,14 @@ export const AuthProvider = ({ children }) => {
     selectedMentee,
     setSelectedMentee,
     signUp: (email, password) => supabase.auth.signUp({ email, password }),
-    login: (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    login: async (email, password) => {
+      const resp = await supabase.auth.signInWithPassword({ email, password });
+      if (resp.data?.session) {
+        // Inicializa manualmente para não depender apenas do listener
+        await initializeUser(resp.data.session);
+      }
+      return resp;
+    },
     logout
   };
 
