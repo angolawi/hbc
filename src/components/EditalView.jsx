@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
 import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil } from 'lucide-react';
-import { pushData } from '../utils/dataSync';
+import { pushData, pullAllData } from '../utils/dataSync';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -14,34 +15,44 @@ const blankMetrics = () => ({
 
 export default function EditalView() {
   const { alert, confirm } = useNotification();
+  const { user, selectedMentee } = useAuth();
   const [disciplines, setDisciplines] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [newDiscName, setNewDiscName] = useState('');
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
   const [smartText, setSmartText] = useState('');
 
-  // Load from local storage
   useEffect(() => {
-    const savedData = localStorage.getItem('simpl_edital');
-    if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      // Migrate old data that only had "concluido" boolean
-      const migrated = parsedData.map(d => ({
-        ...d,
-        categoria: d.categoria || 'Conhecimentos Gerais',
-        currentPhase: d.currentPhase || 1,
-        topicos: d.topicos.map(t => ({
-          ...t,
-          ...(!t.fase1 ? blankMetrics() : {})
-        }))
-      }));
-      setDisciplines(migrated);
-    }
-  }, []);
+    const loadData = async () => {
+      if (selectedMentee) {
+        setLoading(true);
+        const data = await pullAllData(user, selectedMentee.id);
+        const saved = data?.find(i => i.key === 'simpl_edital')?.data;
+        if (saved) setDisciplines(saved);
+        setLoading(false);
+      } else {
+        const savedData = localStorage.getItem('simpl_edital');
+        if (savedData) {
+          try {
+            const parsedData = JSON.parse(savedData);
+            setDisciplines(parsedData);
+          } catch (e) {
+            console.error("Error parsing local edital:", e);
+          }
+        }
+      }
+    };
+    loadData();
+  }, [selectedMentee, user]);
 
   const saveToStorage = async (data) => {
     setDisciplines(data);
-    localStorage.setItem('simpl_edital', JSON.stringify(data));
-    await pushData('simpl_edital', data);
+    if (selectedMentee) {
+      await pushData('simpl_edital', data, user, selectedMentee.id);
+    } else {
+      localStorage.setItem('simpl_edital', JSON.stringify(data));
+      await pushData('simpl_edital', data);
+    }
   };
 
   const addDiscipline = () => {
@@ -518,6 +529,7 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
                   <TopicAccordion 
                   key={topico.id} 
                   topico={topico}
+                  selectedMentee={selectedMentee}
                   onRemove={() => onRemoveTopico(topico.id)}
                   onUpdate={(phase, field, val) => onUpdateTopicMetrics(topico.id, phase, field, val)}
                   onEditText={(newText) => onEditTopicoText(topico.id, newText)}
@@ -531,7 +543,7 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
   );
 }
 
-function TopicAccordion({ topico, onRemove, onUpdate, onEditText }) {
+function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee }) {
   const [expanded, setExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(topico.texto);
@@ -597,7 +609,7 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText }) {
         </div>
         
         {/* Quick Indicators that show when collapsed */}
-        {!expanded && (
+        {!expanded && !selectedMentee && (
           <div className="hidden md:flex gap-2 text-[10px] font-bold">
             <span className={`px-2 py-1 rounded-full ${getPillColor(p1)}`} title="Fase 1">F1: {p1 !== null ? `${p1}%` : '-'}</span>
             <span className={`px-2 py-1 rounded-full ${getPillColor(p2)}`} title="Fase 2">F2: {p2 !== null ? `${p2}%` : '-'}</span>
@@ -627,7 +639,7 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText }) {
         </div>
       </div>
 
-      {expanded && (
+      {expanded && !selectedMentee && (
         <div className="p-4 bg-zinc-950/80 border-t border-zinc-800/50 animate-in slide-in-from-top-2 duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -686,20 +698,17 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText }) {
             {/* Phase 3 */}
             <div className="space-y-3">
               <div className="flex justify-between items-center bg-zinc-900/80 p-2 rounded-t-lg border-b border-zinc-800 mt-2">
-                <span className="text-xs font-black text-rose-500 uppercase tracking-widest">Fase 3</span>
+                <span className="text-xs font-black text-rose-500 uppercase tracking-widest">Fase 3 (Revisão)</span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${getPillColor(p3)}`}>{p3 !== null ? `${p3}% Acerto` : '--'}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
-                <div className="col-span-2">
-                  <span className="text-[10px] text-zinc-600 italic">Datas irrelevantes em consolidação profunda.</span>
-                </div>
                 <div>
                   <label className="text-[10px] text-zinc-500 uppercase">Questões Certas</label>
-                  <Input type="number" min="0" className="h-8 text-xs" value={topico.fase3?.certas || ''} onChange={(e) => onUpdate('fase3', 'certas', e.target.value)} />
+                  <Input type="number" min="0" placeholder="Ex: 90" className="h-8 text-xs" value={topico.fase3?.certas || ''} onChange={(e) => onUpdate('fase3', 'certas', e.target.value)} />
                 </div>
                 <div>
                   <label className="text-[10px] text-zinc-500 uppercase">Qtd. Resolvidas</label>
-                  <Input type="number" min="0" className="h-8 text-xs" value={topico.fase3?.resolvidas || ''} onChange={(e) => onUpdate('fase3', 'resolvidas', e.target.value)} />
+                  <Input type="number" min="0" placeholder="Ex: 100" className="h-8 text-xs" value={topico.fase3?.resolvidas || ''} onChange={(e) => onUpdate('fase3', 'resolvidas', e.target.value)} />
                 </div>
               </div>
             </div>

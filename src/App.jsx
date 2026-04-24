@@ -9,7 +9,9 @@ import ActiveCycleView from './components/ActiveCycleView';
 import CycleDashboardView from './components/CycleDashboardView';
 import SettingsView from './components/SettingsView';
 import LoginView from './components/LoginView';
-import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2, Cloud, CloudOff } from 'lucide-react';
+import MentorView from './components/MentorView';
+import MentorPerformanceView from './components/MentorPerformanceView';
+import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2, Cloud, CloudOff, ShieldCheck, ChevronLeft, TrendingUp } from 'lucide-react';
 
 function SyncStatus() {
   const [status, setStatus] = useState('idle'); // idle, syncing, success, error
@@ -51,7 +53,7 @@ function SyncStatus() {
 }
 
 function App() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, isMentor, selectedMentee, setSelectedMentee } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -67,6 +69,11 @@ function App() {
   if (!user) {
     return <LoginView />;
   }
+
+  const navigateBackToMentor = () => {
+    setSelectedMentee(null);
+    setActiveTab('mentor');
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden text-slate-100 font-sans bg-zinc-950">
@@ -86,14 +93,16 @@ function App() {
           
           <div className="flex flex-col gap-1 flex-1">
             {[
-              { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5' },
-              { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
-              { id: 'ciclo', label: 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', altId: 'create_cycle' },
-              { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5' },
-              { id: 'edital', label: 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
-              { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5' },
-              { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10' },
-            ].map((item) => {
+              { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5', mentorHide: !!selectedMentee },
+              { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', mentorHide: !!selectedMentee },
+              { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', altId: 'create_cycle' },
+              { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', mentorHide: !!selectedMentee },
+              { id: 'edital', label: selectedMentee ? 'Configurar Edital' : 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
+              { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', mentorHide: !!selectedMentee },
+              { id: 'mentor', label: 'Painel Mentor', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
+              { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },
+              { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10', mentorHide: !!selectedMentee },
+            ].filter(item => !item.hidden && !item.mentorHide).map((item) => {
               const isActive = activeTab === item.id || (item.altId && activeTab === item.altId);
               return (
                 <button
@@ -115,7 +124,9 @@ function App() {
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-[10px] font-black text-zinc-300 truncate">{user.email?.split('@')[0]}</span>
-                <span className="text-[8px] font-bold text-zinc-600 uppercase">Premium Member</span>
+                <span className="text-[8px] font-bold text-zinc-600 uppercase">
+                  {isMentor ? 'Account Master' : 'Premium Member'}
+                </span>
               </div>
             </div>
             <button
@@ -130,6 +141,21 @@ function App() {
       </nav>
 
       <main className="flex-1 overflow-y-auto flex flex-col relative w-full">
+        {/* Impersonation Banner */}
+        {selectedMentee && (
+          <div className="bg-indigo-600 text-white p-2 flex items-center justify-center gap-4 text-[10px] font-black uppercase tracking-widest animate-in slide-in-from-top-full duration-500 z-50">
+            <ShieldCheck size={14} />
+            <span>Monitorando: {selectedMentee.email}</span>
+            <button 
+              onClick={navigateBackToMentor}
+              className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded flex items-center gap-1 transition-colors"
+            >
+              <ChevronLeft size={12} />
+              Sair da Visão Aluno
+            </button>
+          </div>
+        )}
+
         {/* Mobile / Toggle Header */}
         <div className="flex items-center gap-4 px-4 py-3 lg:px-6 lg:py-4 sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
           <button
@@ -147,18 +173,21 @@ function App() {
             {activeTab === 'edital' && 'Edital Verticalizado'}
             {activeTab === 'stats' && 'Desempenho Geral'}
             {activeTab === 'settings' && 'Configurações'}
+            {activeTab === 'mentor' && 'Gestão de Alunos'}
           </span>
         </div>
 
         <div className="max-w-7xl mx-auto h-full w-full p-4 lg:p-10 pt-6">
           {activeTab === 'home' && <HomeDashboardView />}
           {activeTab === 'timer' && <TimerView />}
-          {activeTab === 'ciclo' && <ActiveCycleView setActiveTab={setActiveTab} />}
+          {activeTab === 'ciclo' && (selectedMentee ? <CycleView setActiveTab={setActiveTab} /> : <ActiveCycleView setActiveTab={setActiveTab} />)}
           {activeTab === 'create_cycle' && <CycleView setActiveTab={setActiveTab} />}
           {activeTab === 'cycledashboard' && <CycleDashboardView />}
           {activeTab === 'edital' && <EditalView />}
           {activeTab === 'stats' && <WeeklyStatsView />}
           {activeTab === 'settings' && <SettingsView />}
+          {activeTab === 'mentor' && <MentorView />}
+          {activeTab === 'mentor_stats' && <MentorPerformanceView />}
         </div>
       </main>
       <SyncStatus />

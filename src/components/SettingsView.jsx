@@ -1,13 +1,45 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, AlertTriangle, CloudUpload, CloudDownload, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, CloudUpload, CloudDownload, Clock, CheckCircle2, XCircle, User, Fingerprint } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import { pushAllLocalData, pullAllData, getSyncHistory } from '../utils/dataSync';
-
+import { supabase } from '../utils/supabase';
 export default function SettingsView() {
   const { alert, confirm } = useNotification();
+  const { user, isMentor, setIsMentor } = useAuth();
   const [history, setHistory] = useState([]);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [targetContest, setTargetContest] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (data) {
+        setFirstName(data.first_name || '');
+        setLastName(data.last_name || '');
+        setTargetContest(data.target_contest || '');
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const handleUpdateProfile = async () => {
+    setSaving(true);
+    const { error } = await supabase.from('profiles').update({
+      first_name: firstName,
+      last_name: lastName,
+      target_contest: targetContest
+    }).eq('id', user.id);
+    
+    setSaving(false);
+    if (error) alert("Erro ao atualizar perfil.", "error");
+    else alert("Perfil atualizado com sucesso!", "success");
+  };
 
   useEffect(() => {
     setHistory(getSyncHistory());
@@ -16,6 +48,11 @@ export default function SettingsView() {
     window.addEventListener('sync-history-updated', handleUpdate);
     return () => window.removeEventListener('sync-history-updated', handleUpdate);
   }, []);
+
+  const copyId = () => {
+    navigator.clipboard.writeText(user.id);
+    alert("ID copiado para a área de transferência!", "success");
+  };
 
   const handleManualPush = async () => {
     const isConfirmed = await confirm("Isso sincronizará seus dados locais com a nuvem agora. Continuar?");
@@ -50,6 +87,73 @@ export default function SettingsView() {
       </header>
 
       <div className="w-full max-w-4xl space-y-8">
+        {/* Personal Profile Data */}
+        <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
+          <h3 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
+            <Fingerprint className="text-indigo-500" size={24} /> 
+            Dados de Identificação
+          </h3>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Nome</label>
+                <Input placeholder="Ex: Willian" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Sobrenome</label>
+                <Input placeholder="Ex: Silva" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Concurso Alvo (Foco Atual)</label>
+              <Input placeholder="Ex: Receita Federal, PF, etc." value={targetContest} onChange={(e) => setTargetContest(e.target.value)} />
+            </div>
+
+            <Button 
+                onClick={handleUpdateProfile} 
+                className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white w-full sm:w-auto"
+                disabled={saving}
+            >
+              {saving ? 'Salvando...' : 'Salvar Alterações de Perfil'}
+            </Button>
+          </div>
+        </Card>
+
+        {/* Account Info and Mentor Mode */}
+        <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
+          <h3 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
+            <User className="text-indigo-500" size={24} /> 
+            Perfil & Gestão
+          </h3>
+          
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800 gap-4">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-1">Seu ID de Usuário</h4>
+                <code className="text-xs text-indigo-400 font-mono">{user.id}</code>
+              </div>
+              <Button onClick={copyId} variant="outline" className="h-10 text-[10px] uppercase font-black tracking-widest">
+                Copiar ID
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between p-6 bg-zinc-950/50 rounded-2xl border border-zinc-800">
+              <div className="flex-1">
+                <h4 className="text-zinc-100 font-bold mb-1">
+                  Perfil de Usuário: <span className="text-indigo-400 capitalize">{isMentor ? 'Mentor' : 'Aluno'}</span>
+                </h4>
+                <p className="text-zinc-500 text-[10px] leading-relaxed max-w-sm">
+                  {isMentor 
+                    ? 'Você possui permissões de gestão e acesso ao dashboard de análise global.' 
+                    : 'Você está utilizando a versão de estudante do HBC estudos.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* Cloud Sync Status */}
         <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
           <h3 className="text-xl font-bold text-zinc-100 mb-4 flex items-center gap-2">
