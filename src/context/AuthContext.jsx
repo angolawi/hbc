@@ -37,9 +37,7 @@ export const AuthProvider = ({ children }) => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[AuthContext] Realtime channel status:', status);
-      });
+      .subscribe();
 
     realtimeChannelRef.current = channel;
   };
@@ -81,7 +79,6 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for auth state changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[AuthContext] Auth event:', event);
       setSession(session);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
@@ -111,6 +108,10 @@ export const AuthProvider = ({ children }) => {
   const signUp = (email, password) => supabase.auth.signUp({ email, password });
   const login = (email, password) => supabase.auth.signInWithPassword({ email, password });
   const logout = async () => {
+    // Proactive sync before logout
+    if (user) {
+      await smartSync(user);
+    }
     await supabase.auth.signOut();
     SYNC_KEYS.forEach(key => localStorage.removeItem(key));
   };
@@ -118,15 +119,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!user) return;
 
-    // 1. Periodic sync every 5 minutes
+    // 1. Periodic sync every 15 minutes (more realistic background pattern)
     const interval = setInterval(() => {
       triggerPull(user);
-    }, 5 * 60 * 1000);
+    }, 15 * 60 * 1000);
 
     // 2. Sync whenever tab gains focus
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[AuthContext] Tab focused - triggering smart sync');
         triggerPull(user);
       }
     };

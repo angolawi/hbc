@@ -112,7 +112,6 @@ export const pushData = async (key, data, authenticatedUser = null) => {
  */
 export const smartSync = async (authenticatedUser = null) => {
   try {
-    console.log('[DataSync] Initializing Frictionless Smart Sync...');
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'start' } }));
 
     let user = authenticatedUser;
@@ -164,7 +163,6 @@ export const smartSync = async (authenticatedUser = null) => {
       }
     }
 
-    console.log('[DataSync] Smart Sync completed successfully.');
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
     logSyncEvent('Automatic Sync', 'success', `${cloudData.length} items checked`);
   } catch (err) {
