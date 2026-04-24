@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from './context/AuthContext';
 import HomeDashboardView from './components/HomeDashboardView';
 import TimerView from './components/TimerView';
 import EditalView from './components/EditalView';
@@ -7,68 +8,83 @@ import CycleView from './components/CycleView';
 import ActiveCycleView from './components/ActiveCycleView';
 import CycleDashboardView from './components/CycleDashboardView';
 import SettingsView from './components/SettingsView';
-import { Settings } from 'lucide-react';
+import LoginView from './components/LoginView';
+import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2 } from 'lucide-react';
 
 function App() {
+  const { user, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  if (loading) {
+    return (
+      <div className="h-screen w-full bg-zinc-950 flex flex-col items-center justify-center gap-4">
+        <Loader2 className="text-indigo-500 animate-spin" size={48} />
+        <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Carregando Protocolo...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden text-slate-100 font-sans bg-zinc-950">
 
       {/* Sidebar Navigation */}
       <nav className={`flex flex-col border-r border-zinc-800 bg-zinc-950/80 backdrop-blur-md shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0 opacity-0'}`}>
-        <div className="p-6 w-64">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-xl font-bold tracking-widest uppercase text-white">
+        <div className="p-6 w-64 flex flex-col h-full">
+          <div className="flex justify-between items-center mb-10">
+            <h1 className="text-xl font-black tracking-widest uppercase text-white flex items-center gap-2">
+              <div className="w-2 h-6 bg-indigo-500 rounded-full" />
               Estudos
             </h1>
             <button onClick={() => setIsSidebarOpen(false)} className="text-zinc-500 hover:text-white lg:hidden">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+              <X size={24} />
             </button>
           </div>
-          <div className="flex flex-col gap-2">
+          
+          <div className="flex flex-col gap-1 flex-1">
+            {[
+              { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5' },
+              { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
+              { id: 'ciclo', label: 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', altId: 'create_cycle' },
+              { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5' },
+              { id: 'edital', label: 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
+              { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5' },
+              { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10' },
+            ].map((item) => {
+              const isActive = activeTab === item.id || (item.altId && activeTab === item.altId);
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex items-center gap-3 text-left text-[10px] font-black tracking-widest uppercase transition-all px-4 py-3.5 rounded-xl border-l-[3px] ${isActive ? item.color : 'border-transparent text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900'}`}
+                >
+                  <item.icon size={16} strokeWidth={isActive ? 3 : 2} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pt-6 border-t border-zinc-800/50 mt-6">
+            <div className="px-4 mb-4 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-400 uppercase">
+                {user.email?.[0] || 'U'}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-black text-zinc-300 truncate">{user.email?.split('@')[0]}</span>
+                <span className="text-[8px] font-bold text-zinc-600 uppercase">Premium Member</span>
+              </div>
+            </div>
             <button
-              onClick={() => setActiveTab('home')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'home' ? 'border-sky-500 text-sky-400 bg-sky-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
+              onClick={logout}
+              className="w-full flex items-center gap-3 text-left text-[10px] font-black tracking-widest uppercase transition-all px-4 py-3.5 rounded-xl text-rose-500 hover:bg-rose-500/10"
             >
-              Início
-            </button>
-            <button
-              onClick={() => setActiveTab('timer')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'timer' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
-            >
-              Cronômetro
-            </button>
-            <button
-              onClick={() => setActiveTab('ciclo')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'ciclo' || activeTab === 'create_cycle' ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
-            >
-              Meu Ciclo
-            </button>
-            <button
-              onClick={() => setActiveTab('cycledashboard')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'cycledashboard' ? 'border-rose-500 text-rose-400 bg-rose-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
-            >
-              Controle
-            </button>
-            <button
-              onClick={() => setActiveTab('edital')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'edital' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
-            >
-              Meu Edital
-            </button>
-            <button
-              onClick={() => setActiveTab('stats')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'stats' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
-            >
-              Desempenho Geral
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'settings' ? 'border-zinc-400 text-zinc-100 bg-zinc-800' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
-            >
-              Configurações
+              <LogOut size={16} />
+              Sair da Conta
             </button>
           </div>
         </div>
@@ -76,16 +92,14 @@ function App() {
 
       <main className="flex-1 overflow-y-auto flex flex-col relative w-full">
         {/* Mobile / Toggle Header */}
-        <div className="flex items-center gap-4 px-4 py-3 lg:px-6 lg:py-4 sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
+        <div className="flex items-center gap-4 px-4 py-3 lg:px-6 lg:py-4 sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" />
-            </svg>
+            <Menu size={24} />
           </button>
-          <span className="font-semibold text-lg text-zinc-100">
+          <span className="font-bold text-sm uppercase tracking-widest text-zinc-400">
             {activeTab === 'home' && 'Dashboard Inicial'}
             {activeTab === 'timer' && 'Cronômetro de Estudos'}
             {activeTab === 'ciclo' && 'Meu Ciclo de Estudos'}
@@ -97,7 +111,7 @@ function App() {
           </span>
         </div>
 
-        <div className="max-w-7xl mx-auto h-full w-full p-4 lg:p-6 pt-6">
+        <div className="max-w-7xl mx-auto h-full w-full p-4 lg:p-10 pt-6">
           {activeTab === 'home' && <HomeDashboardView />}
           {activeTab === 'timer' && <TimerView />}
           {activeTab === 'ciclo' && <ActiveCycleView setActiveTab={setActiveTab} />}
