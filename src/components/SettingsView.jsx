@@ -9,7 +9,7 @@ import { pushAllLocalData, pullAllData, getSyncHistory } from '../utils/dataSync
 import { supabase } from '../utils/supabase';
 export default function SettingsView() {
   const { alert, confirm } = useNotification();
-  const { user, isMentor, setIsMentor } = useAuth();
+  const { user, isMentor, setIsMentor, refreshProfile } = useAuth();
   const [history, setHistory] = useState([]);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -35,6 +35,8 @@ export default function SettingsView() {
       last_name: lastName,
       target_contest: targetContest
     }).eq('id', user.id);
+    
+    if (!error) await refreshProfile();
     
     setSaving(false);
     if (error) alert("Erro ao atualizar perfil.", "error");

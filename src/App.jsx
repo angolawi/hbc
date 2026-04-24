@@ -57,6 +57,13 @@ function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Mover Hooks para ANTES dos retornos condicionais
+  useEffect(() => {
+    if (isMentor && !selectedMentee && activeTab === 'home') {
+      setActiveTab('mentor');
+    }
+  }, [isMentor, selectedMentee, activeTab]);
+
   if (loading) {
     return (
       <div className="h-screen w-full bg-zinc-950 flex flex-col items-center justify-center gap-4">
@@ -75,6 +82,18 @@ function App() {
     setActiveTab('mentor');
   };
 
+  const sidebarItems = [
+    { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', hidden: isMentor && !selectedMentee, altId: 'create_cycle' },
+    { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'mentor', label: 'Gestão de Alunos', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
+    { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },
+    { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10' },
+  ];
+
   return (
     <div className="flex h-screen w-full overflow-hidden text-slate-100 font-sans bg-zinc-950">
 
@@ -84,7 +103,7 @@ function App() {
           <div className="flex justify-between items-center mb-10">
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em] mb-1">Protocolo</span>
-              <h1 className="text-2xl font-extrabold tracking-tighter text-white">Estudos</h1>
+              <h1 className="text-2xl font-extrabold tracking-tighter text-white">Estudos {isMentor && <span className="text-indigo-400 ml-1 text-xs font-black uppercase">Mentor</span>}</h1>
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="text-zinc-500 hover:text-white lg:hidden">
               <X size={24} />
@@ -92,17 +111,7 @@ function App() {
           </div>
           
           <div className="flex flex-col gap-1 flex-1">
-            {[
-              { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5', mentorHide: !!selectedMentee },
-              { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', mentorHide: !!selectedMentee },
-              { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', altId: 'create_cycle' },
-              { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', mentorHide: !!selectedMentee },
-              { id: 'edital', label: selectedMentee ? 'Configurar Edital' : 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
-              { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', mentorHide: !!selectedMentee },
-              { id: 'mentor', label: 'Painel Mentor', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
-              { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },
-              { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10', mentorHide: !!selectedMentee },
-            ].filter(item => !item.hidden && !item.mentorHide).map((item) => {
+            {sidebarItems.filter(item => !item.hidden).map((item) => {
               const isActive = activeTab === item.id || (item.altId && activeTab === item.altId);
               return (
                 <button
@@ -120,10 +129,12 @@ function App() {
           <div className="pt-6 border-t border-zinc-800/50 mt-6">
             <div className="px-4 mb-4 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-400 uppercase">
-                {user.email?.[0] || 'U'}
+                {(profile?.first_name?.[0] || user.email?.[0] || 'U')}
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-[10px] font-black text-zinc-300 truncate">{user.email?.split('@')[0]}</span>
+                <span className="text-[10px] font-black text-zinc-300 truncate">
+                    {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : user.email?.split('@')[0]}
+                </span>
                 <span className="text-[8px] font-bold text-zinc-600 uppercase">
                   {isMentor ? 'Account Master' : 'Premium Member'}
                 </span>
