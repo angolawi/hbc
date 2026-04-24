@@ -11,11 +11,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Initial session fetch failed:", err);
+        setLoading(false);
+      });
 
     // Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -24,8 +29,12 @@ export const AuthProvider = ({ children }) => {
       setUser(currentUser);
       
       if (currentUser) {
-        // Automatically sync data from cloud on login
-        await pullAllData();
+        try {
+          // Automatically sync data from cloud on login
+          await pullAllData();
+        } catch (e) {
+          console.error("Sync error:", e);
+        }
       }
       
       setLoading(false);

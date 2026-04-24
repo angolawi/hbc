@@ -27,25 +27,29 @@ export const pushData = async (key, data) => {
  * Pulls all relevant study data from Supabase and populates localStorage
  */
 export const pullAllData = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-  const { data, error } = await supabase
-    .from('user_data')
-    .select('key, data')
-    .eq('user_id', user.id);
+    const { data, error } = await supabase
+      .from('user_data')
+      .select('key, data')
+      .eq('user_id', user.id);
 
-  if (error) {
-    console.error('Error pulling data:', error);
-    return;
-  }
+    if (error) {
+      console.error('Error pulling data:', error);
+      return;
+    }
 
-  if (data) {
-    data.forEach(item => {
-      if (SYNC_KEYS.includes(item.key)) {
-        localStorage.setItem(item.key, JSON.stringify(item.data));
-      }
-    });
+    if (data && data.length > 0) {
+      data.forEach(item => {
+        if (SYNC_KEYS.includes(item.key)) {
+          localStorage.setItem(item.key, JSON.stringify(item.data));
+        }
+      });
+    }
+  } catch (e) {
+    console.error("Pull All Data failed:", e);
   }
 };
 
