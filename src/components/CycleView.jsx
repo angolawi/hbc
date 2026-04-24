@@ -4,7 +4,8 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { GripVertical, AlertTriangle, AlertCircle, Info, BrainCircuit, ChevronDown, ChevronUp } from 'lucide-react';
-import { pushData } from '../utils/dataSync';
+import { useAuth } from '../context/AuthContext';
+import { pushData, pullAllData } from '../utils/dataSync';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -14,11 +15,13 @@ const TAGS = {
 
 export default function CycleView({ setActiveTab }) {
   const { alert } = useNotification();
+  const { user, selectedMentee } = useAuth();
   const [step, setStep] = useState(1);
   const [disciplines, setDisciplines] = useState([]);
   const [activeCycle, setActiveCycle] = useState(null);
   const [selectedDiscs, setSelectedDiscs] = useState({});
   const [maxBlockTime, setMaxBlockTime] = useState(120); // default 2h
+  const [loading, setLoading] = useState(false);
   
   const [generatedCycle, setGeneratedCycle] = useState([]);
   const [draggedIdx, setDraggedIdx] = useState(null);
@@ -26,16 +29,27 @@ export default function CycleView({ setActiveTab }) {
   const [fatigueMsg, setFatigueMsg] = useState("");
 
   useEffect(() => {
-    const editalData = localStorage.getItem('simpl_edital');
-    if (editalData) {
-      const parsed = JSON.parse(editalData);
-      setDisciplines(parsed.map(d => ({
-        id: d.id,
-        nome: d.nome,
-        categoria: d.categoria
-      })));
-    }
-  }, []);
+    const loadEdital = async () => {
+      if (selectedMentee) {
+        setLoading(true);
+        const data = await pullAllData(user, selectedMentee.id);
+        const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
+        setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria })));
+        setLoading(false);
+      } else {
+        const editalData = localStorage.getItem('simpl_edital');
+        if (editalData) {
+          const parsed = JSON.parse(editalData);
+          setDisciplines(parsed.map(d => ({
+            id: d.id,
+            nome: d.nome,
+            categoria: d.categoria
+          })));
+        }
+      }
+    };
+    loadEdital();
+  }, [selectedMentee, user]);
 
   const handleSelectDisc = (id, field, value) => {
     setSelectedDiscs(prev => ({
@@ -192,18 +206,24 @@ export default function CycleView({ setActiveTab }) {
   };
 
   const saveCycle = async () => {
-    const existingActive = localStorage.getItem('simpl_ciclo');
-    if (existingActive) {
-      const history = JSON.parse(localStorage.getItem('simpl_ciclo_history') || '[]');
-      const newHistory = [JSON.parse(existingActive), ...history];
-      localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
+    // Generate valid JSON for current cycle
+    const cycleData = {
+      blocks: generatedCycle,
+      createdAt: new Date().toISOString(),
+      currentBlockIdx: 0,
+      isFinished: false
+    };
+
+    if (selectedMentee) {
+      await pushData('simpl_ciclo', cycleData, user, selectedMentee.id);
+      alert("Ciclo planejado e atribuído ao aluno com sucesso!", "success");
+      setActiveTab('edital'); 
+    } else {
+      localStorage.setItem('simpl_ciclo', JSON.stringify(cycleData));
+      await pushData('simpl_ciclo', cycleData, user);
+      alert("Ciclo gerado e salvo com sucesso!", "success");
+      setActiveTab('ciclo');
     }
-    
-    localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
-    await pushData('simpl_ciclo', generatedCycle);
-    setStep(1); // Reset step back to initial view
-    alert("Ciclo Salvo com Sucesso! O cronômetro estará travado nesta ordem.", "success");
-    if (setActiveTab) setActiveTab('ciclo');
   };
 
   const formatMins = (mins) => {

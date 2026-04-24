@@ -55,8 +55,12 @@ const updateLocalTimestamp = (key, timestamp) => {
 
 /**
  * Pushes local data to Supabase.
+ * @param {string} key
+ * @param {any} data
+ * @param {object} authenticatedUser - The acting user session
+ * @param {string} targetUserId - Optional ID of a student if acting as mentor
  */
-export const pushData = async (key, data, authenticatedUser = null) => {
+export const pushData = async (key, data, authenticatedUser = null, targetUserId = null) => {
   try {
     const now = new Date().toISOString();
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'start' } }));
@@ -70,36 +74,38 @@ export const pushData = async (key, data, authenticatedUser = null) => {
     }
 
     if (!user) {
-      console.warn(`[DataSync] No user session for: ${key}`);
       window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'error' } }));
       return;
     }
 
+    // Determine whose data we are modifying
+    const userIdToUpdate = targetUserId || user.id;
+
     if (data === null) {
       const { error } = await withTimeout(
-        supabase.from('user_data').delete().eq('user_id', user.id).eq('key', key),
+        supabase.from('user_data').delete().eq('user_id', userIdToUpdate).eq('key', key),
         10000,
         `delete(${key})`
       );
       if (error) throw error;
-      localStorage.removeItem(`${key}_timestamp`);
+      if (!targetUserId) localStorage.removeItem(`${key}_timestamp`);
     } else {
       const { error } = await withTimeout(
         supabase
           .from('user_data')
           .upsert(
-            { user_id: user.id, key, data, updated_at: now },
+            { user_id: userIdToUpdate, key, data, updated_at: now },
             { onConflict: ['user_id', 'key'] }
           ),
         10000,
         `upsert(${key})`
       );
       if (error) throw error;
-      updateLocalTimestamp(key, now);
+      if (!targetUserId) updateLocalTimestamp(key, now);
     }
     
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'success' } }));
-    logSyncEvent('Individual Push', 'success', `Key: ${key}`);
+    logSyncEvent('Individual Push', 'success', `Key: ${key}${targetUserId ? ' (Mentor Mode)' : ''}`);
   } catch (err) {
     console.error(`[DataSync] Push failed for ${key}:`, err.message || err);
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'error' } }));
@@ -110,7 +116,7 @@ export const pushData = async (key, data, authenticatedUser = null) => {
 /**
  * Performs a smart merge between local and cloud data
  */
-export const smartSync = async (authenticatedUser = null) => {
+export const smartSync = async (authenticatedUser = null, targetUserId = null) => {
   try {
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'start' } }));
 
@@ -127,8 +133,10 @@ export const smartSync = async (authenticatedUser = null) => {
       return;
     }
 
+    const userIdToFetch = targetUserId || user.id;
+
     const { data: cloudData, error } = await withTimeout(
-      supabase.from('user_data').select('key, data, updated_at').eq('user_id', user.id),
+      supabase.from('user_data').select('key, data, updated_at').eq('user_id', userIdToFetch),
       15000,
       'select user_data'
     );
@@ -138,6 +146,11 @@ export const smartSync = async (authenticatedUser = null) => {
     const cloudMap = new Map(cloudData.map(item => [item.key, item]));
     
     for (const key of SYNC_KEYS) {
+      // In Mentor mode, we DON'T pull to local storage (we don't want to overwrite mentor's personal data)
+      // unless we are specifically in a "Preview Mode" handled by the UI.
+      // For now, smartSync strictly handles the current user's local merge.
+      if (targetUserId) continue; 
+
       const localVal = localStorage.getItem(key);
       const localTs = localStorage.getItem(`${key}_timestamp`);
       const cloudItem = cloudMap.get(key);
@@ -145,18 +158,15 @@ export const smartSync = async (authenticatedUser = null) => {
       if (cloudItem) {
         const cloudTs = cloudItem.updated_at;
         if (!localTs || new Date(cloudTs) > new Date(localTs)) {
-          // Cloud is newer - pull it
           const val = typeof cloudItem.data === 'string' ? cloudItem.data : JSON.stringify(cloudItem.data);
           localStorage.setItem(key, val);
           updateLocalTimestamp(key, cloudTs);
         } else if (new Date(localTs) > new Date(cloudTs)) {
-          // Local is newer - push it
           let parsed;
           try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
           await pushData(key, parsed, user);
         }
       } else if (localVal !== null) {
-        // Only local exists - push it
         let parsed;
         try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
         await pushData(key, parsed, user);
@@ -164,7 +174,8 @@ export const smartSync = async (authenticatedUser = null) => {
     }
 
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
-    logSyncEvent('Automatic Sync', 'success', `${cloudData.length} items checked`);
+    logSyncEvent('Automatic Sync', 'success', `${cloudData.length} items checked${targetUserId ? ' (Mentor Mode)' : ''}`);
+    return cloudData;
   } catch (err) {
     console.error('[DataSync] Smart Sync failed:', err.message || err);
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'error' } }));
@@ -175,5 +186,5 @@ export const smartSync = async (authenticatedUser = null) => {
 /**
  * Legacy/Compatibility aliases
  */
-export const pushAllLocalData = async (user) => smartSync(user);
-export const pullAllData = async (user) => smartSync(user);
+export const pushAllLocalData = async (user, targetUserId = null) => smartSync(user, targetUserId);
+export const pullAllData = async (user, targetUserId = null) => smartSync(user, targetUserId);
