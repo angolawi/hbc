@@ -108,10 +108,12 @@ export default function SettingsView() {
               </div>
             </div>
             
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Concurso Alvo (Foco Atual)</label>
-              <Input placeholder="Ex: Receita Federal, PF, etc." value={targetContest} onChange={(e) => setTargetContest(e.target.value)} />
-            </div>
+             {!isMentor && (
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Concurso Alvo (Foco Atual)</label>
+                 <Input placeholder="Ex: Receita Federal, PF, etc." value={targetContest} onChange={(e) => setTargetContest(e.target.value)} />
+               </div>
+             )}
 
             <Button 
                 onClick={handleUpdateProfile} 

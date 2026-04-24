@@ -53,7 +53,7 @@ function SyncStatus() {
 }
 
 function App() {
-  const { user, loading, logout, isMentor, selectedMentee, setSelectedMentee } = useAuth();
+  const { user, loading, logout, isMentor, profile, selectedMentee, setSelectedMentee } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -87,7 +87,7 @@ function App() {
     { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
     { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', hidden: isMentor && !selectedMentee, altId: 'create_cycle' },
     { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', hidden: isMentor && !selectedMentee },
-    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : (isMentor ? 'Gerenciar Editais' : 'Meu Edital'), icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
     { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: isMentor && !selectedMentee },
     { id: 'mentor', label: 'Gestão de Alunos', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
     { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },

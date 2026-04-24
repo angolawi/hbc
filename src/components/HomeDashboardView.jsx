@@ -33,10 +33,16 @@ export default function HomeDashboardView() {
 
     const cicloData = localStorage.getItem('simpl_ciclo');
     if (cicloData) {
-      const parsedCiclo = JSON.parse(cicloData);
-      const nomesNoCiclo = [...new Set(parsedCiclo.map(b => b.nome))];
-      if (nomesNoCiclo.length > 0) {
-        discData = discData.filter(d => nomesNoCiclo.includes(d.nome));
+      try {
+        const parsedCiclo = JSON.parse(cicloData);
+        // Robustez: aceita tanto array simples quanto o novo objeto { blocks: [] }
+        const blocks = Array.isArray(parsedCiclo) ? parsedCiclo : (parsedCiclo.blocks || []);
+        const nomesNoCiclo = [...new Set(blocks.map(b => b.nome))];
+        if (nomesNoCiclo.length > 0) {
+          discData = discData.filter(d => nomesNoCiclo.includes(d.nome));
+        }
+      } catch (e) {
+        console.error("Erro ao ler ciclo no dashboard:", e);
       }
     }
 
