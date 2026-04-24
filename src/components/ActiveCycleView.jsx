@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { BrainCircuit } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { pushData } from '../utils/dataSync';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -73,6 +74,7 @@ export default function ActiveCycleView({ setActiveTab }) {
               if (confirmed) {
                 localStorage.removeItem('simpl_ciclo');
                 setActiveCycle(null);
+                pushData('simpl_ciclo', null);
               }
             }}>
               Apagar Ciclo Atual
@@ -132,6 +134,7 @@ export default function ActiveCycleView({ setActiveTab }) {
                     newHistory.splice(cycleIdx, 1);
                     localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
                     setInactiveCycles(newHistory);
+                    pushData('simpl_ciclo_history', newHistory);
                   }
                 }}>
                   Excluir do Histórico

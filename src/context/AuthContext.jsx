@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
       });
 
     // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
@@ -31,7 +31,11 @@ export const AuthProvider = ({ children }) => {
       if (currentUser) {
         try {
           // Automatically sync data from cloud on login
-          await pullAllData();
+          const pulled = await pullAllData();
+          // If we just signed in and pulled data, reload to ensure components update
+          if (pulled && event === 'SIGNED_IN') {
+             window.location.reload();
+          }
         } catch (e) {
           console.error("Sync error:", e);
         }
