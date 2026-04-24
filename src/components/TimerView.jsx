@@ -6,7 +6,7 @@ import { Button } from './ui/Button';
 import { Select, Input } from './ui/Input';
 import { Clock, BookOpen, Target, TrendingUp, Brain, Flame, Minus, Plus } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
-import { getPhaseWorkflows, formatTime } from '../utils/timerUtils';
+import { getPhaseWorkflows, formatTime, TIMER_STORAGE_KEY, calculateRemainingTime } from '../utils/timerUtils';
 
 
 export default function TimerView() {
@@ -28,6 +28,7 @@ export default function TimerView() {
   const [showTimerText, setShowTimerText] = useState(true);
   const [activeNoise, setActiveNoise] = useState('none');
   const [noiseVolume, setNoiseVolume] = useState(0.5);
+  const [targetEndTime, setTargetEndTime] = useState(null);
   const timerRef = useRef(null);
 
   // Validation States
@@ -92,6 +93,7 @@ export default function TimerView() {
     setTimeRemaining(steps[0].duration);
     setTimerRunning(true);
     setIsCounting(false);
+    setTargetEndTime(null);
     setShowMetricsModal(false);
 
     setUploadFileContext(null);
@@ -144,11 +146,13 @@ export default function TimerView() {
 
     if (stepIndex + 1 >= currentSteps.length) {
       // Abre modal final integrador
+      localStorage.removeItem(TIMER_STORAGE_KEY);
       loadMetricsData();
       setShowMetricsModal(true);
     } else {
       setStepIndex(prev => prev + 1);
       setTimeRemaining(currentSteps[stepIndex + 1].duration);
+      setTargetEndTime(null);
     }
   };
 
@@ -167,19 +171,25 @@ export default function TimerView() {
   const handleTimerAction = () => {
     if (isCounting) {
       setIsCounting(false);
+      setTargetEndTime(null);
       clearInterval(timerRef.current);
     } else {
+      const endTime = Date.now() + timeRemaining * 1000;
+      setTargetEndTime(endTime);
       setIsCounting(true);
+      
+      // Update once immediately to avoid 1s lag
       timerRef.current = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current);
-            playAlarm();
-            setIsCounting(false);
-            return 0;
-          }
-          return prev - 1;
-        });
+        const remaining = calculateRemainingTime(endTime);
+        if (remaining <= 0) {
+          clearInterval(timerRef.current);
+          setTimeRemaining(0);
+          setTargetEndTime(null);
+          setIsCounting(false);
+          playAlarm();
+        } else {
+          setTimeRemaining(remaining);
+        }
       }, 1000);
     }
   };
@@ -214,6 +224,7 @@ export default function TimerView() {
     setModalCertas('');
     setModalResolvidas('');
     setModalTopico('');
+    localStorage.removeItem(TIMER_STORAGE_KEY);
   };
 
   const handleSubmitMetrics = () => {
@@ -279,12 +290,93 @@ export default function TimerView() {
     handleCancelSession();
   };
 
+  // Persistence Logic
   useEffect(() => {
+    const savedSession = localStorage.getItem(TIMER_STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        setSelectedPhase(session.phase);
+        setRepriseTime(session.times.reprise);
+        setEstudoTime(session.times.estudo);
+        setAplicacaoTime(session.times.aplicacao);
+        setRevisaoTime(session.times.revisao);
+        setDescansoTime(session.times.descanso);
+        setCurrentSteps(session.steps);
+        setStepIndex(session.stepIndex);
+        setTimerRunning(true);
+        
+        if (session.targetEndTime) {
+          const remaining = calculateRemainingTime(session.targetEndTime);
+          if (remaining > 0) {
+            setTimeRemaining(remaining);
+            setTargetEndTime(session.targetEndTime);
+            setIsCounting(true);
+            
+            // Resume the interval
+            timerRef.current = setInterval(() => {
+              const rem = calculateRemainingTime(session.targetEndTime);
+              if (rem <= 0) {
+                clearInterval(timerRef.current);
+                setTimeRemaining(0);
+                setTargetEndTime(null);
+                setIsCounting(false);
+                playAlarm();
+              } else {
+                setTimeRemaining(rem);
+              }
+            }, 1000);
+          } else {
+            setTimeRemaining(0);
+            setIsCounting(false);
+          }
+        } else {
+          setTimeRemaining(session.timeRemaining);
+        }
+      } catch (e) {
+        console.error("Failed to load session", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (timerRunning) {
+      const session = {
+        phase: selectedPhase,
+        times: { reprise: repriseTime, estudo: estudoTime, aplicacao: aplicacaoTime, revisao: revisaoTime, descanso: descansoTime },
+        steps: currentSteps,
+        stepIndex,
+        timeRemaining,
+        targetEndTime
+      };
+      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(session));
+    }
+  }, [timerRunning, selectedPhase, currentSteps, stepIndex, timeRemaining, targetEndTime]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && targetEndTime) {
+        const remaining = calculateRemainingTime(targetEndTime);
+        if (remaining <= 0) {
+          setTimeRemaining(0);
+          setIsCounting(false);
+          setTargetEndTime(null);
+          clearInterval(timerRef.current);
+          // Only alarm if it was supposed to finish while we were away
+          playAlarm();
+        } else {
+          setTimeRemaining(remaining);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(timerRef.current);
       audioEngine.stop();
     };
-  }, []);
+  }, [targetEndTime]);
 
   if (!timerRunning) {
     return (

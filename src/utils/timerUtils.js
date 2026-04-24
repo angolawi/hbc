@@ -23,6 +23,15 @@ export const getPhaseWorkflows = (phase, repriseTime, estudoTime, aplicacaoTime,
   }
 };
 
+export const TIMER_STORAGE_KEY = 'simpl_timer_session';
+
+export const calculateRemainingTime = (targetTimestamp) => {
+  if (!targetTimestamp) return 0;
+  const remaining = Math.round((targetTimestamp - Date.now()) / 1000);
+  return Math.max(0, remaining);
+};
+
+
 export const formatTime = (totalSeconds) => {
   const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
   const s = (totalSeconds % 60).toString().padStart(2, '0');
