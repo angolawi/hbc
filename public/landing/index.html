@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HBC · Método de Alta Performance para Concursos</title>
+  <meta name="description" content="O sistema definitivo de gestão de estudos para concursos públicos. Ciclos antifadiga, edital verticalizado, mentoria estruturada e heatmaps de performance." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090b;
+      --bg2:       #111113;
+      --bg3:       #18181b;
+      --border:    #27272a;
+      --border2:   #3f3f46;
+      --text:      #fafafa;
+      --text2:     #a1a1aa;
+      --text3:     #52525b;
+      --indigo:    #6366f1;
+      --indigo2:   #818cf8;
+      --rose:      #f43f5e;
+      --amber:     #f59e0b;
+      --emerald:   #10b981;
+      --teal:      #14b8a6;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.5;
+    }
+
+    /* ── NAVBAR ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(1.5rem, 5vw, 4rem);
+      height: 64px;
+      background: rgba(9, 9, 11, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: 1.15rem;
+      letter-spacing: -0.03em;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .nav-logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--indigo), #a855f7);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--indigo);
+      color: white !important;
+      padding: 0.45rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 700;
+      transition: background 0.2s, transform 0.15s !important;
+    }
+
+    .nav-cta:hover {
+      background: #4f46e5 !important;
+      transform: translateY(-1px);
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 100px clamp(1.5rem, 5vw, 4rem) 80px;
+      overflow: hidden;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px; height: 400px;
+      background: radial-gradient(ellipse at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-glow-2 {
+      position: absolute;
+      bottom: 5%;
+      left: 20%;
+      width: 400px; height: 300px;
+      background: radial-gradient(ellipse at center, rgba(244, 63, 94, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--indigo2);
+      margin-bottom: 2rem;
+      animation: fadeSlideDown 0.6s ease both;
+    }
+
+    .hero-badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--indigo2);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    h1 {
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 1.5rem;
+      animation: fadeSlideDown 0.8s ease 0.1s both;
+    }
+
+    h1 .accent {
+      background: linear-gradient(135deg, var(--indigo2) 0%, #a855f7 50%, var(--rose) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      max-width: 620px;
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--text2);
+      margin-bottom: 2.5rem;
+      font-weight: 400;
+      animation: fadeSlideDown 0.8s ease 0.2s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeSlideDown 0.8s ease 0.3s both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--indigo);
+      color: white;
+      padding: 0.8rem 2rem;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: #4f46e5;
+      transform: translateY(-2px);
+      box-shadow: 0 0 60px rgba(99, 102, 241, 0.5);
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--text2);
+      padding: 0.8rem 2rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: 1px solid var(--border2);
+      transition: all 0.2s;
+    }
+
+    .btn-outline:hover {
+      border-color: var(--text3);
+      color: var(--text);
+      transform: translateY(-2px);
+    }
+
+    /* ── HERO STATS BAR ── */
+    .stats-bar {
+      display: flex;
+      gap: clamp(1.5rem, 4vw, 3rem);
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 4rem;
+      padding-top: 3rem;
+      border-top: 1px solid var(--border);
+      width: 100%;
+      max-width: 800px;
+      animation: fadeSlideDown 0.8s ease 0.5s both;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-num {
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      font-family: 'JetBrains Mono', monospace;
+      background: linear-gradient(135deg, var(--text) 0%, var(--text2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text3);
+    }
+
+    /* ── SECTION LAYOUT ── */
+    section {
+      position: relative;
+      padding: 100px clamp(1.5rem, 5vw, 4rem);
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--indigo2);
+      margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    .section-sub {
+      font-size: 1.05rem;
+      color: var(--text2);
+      max-width: 560px;
+    }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 4rem;
+    }
+
+    .feature-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s, transform 0.3s;
+      cursor: default;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.4), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(99, 102, 241, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .feature-card:hover::before { opacity: 1; }
+
+    .feature-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      margin-bottom: 1.2rem;
+    }
+
+    .feature-icon.indigo { background: rgba(99, 102, 241, 0.1); }
+    .feature-icon.rose   { background: rgba(244, 63, 94, 0.1); }
+    .feature-icon.amber  { background: rgba(245, 158, 11, 0.1); }
+    .feature-icon.emerald{ background: rgba(16, 185, 129, 0.1); }
+    .feature-icon.teal   { background: rgba(20, 184, 166, 0.1); }
+    .feature-icon.purple { background: rgba(168, 85, 247, 0.1); }
+
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      margin-bottom: 0.6rem;
+      letter-spacing: -0.02em;
+    }
+
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.65;
+    }
+
+    .feature-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 1.2rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .feature-tag.indigo  { background: rgba(99,102,241,0.1); color: var(--indigo2); }
+    .feature-tag.rose    { background: rgba(244,63,94,0.1);  color: #fb7185; }
+    .feature-tag.amber   { background: rgba(245,158,11,0.1); color: #fcd34d; }
+    .feature-tag.emerald { background: rgba(16,185,129,0.1); color: #34d399; }
+    .feature-tag.teal    { background: rgba(20,184,166,0.1); color: #2dd4bf; }
+    .feature-tag.purple  { background: rgba(168,85,247,0.1); color: #c084fc; }
+
+    /* ── MENTOR SECTION ── */
+    .mentor-section {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: clamp(2.5rem, 5vw, 4rem);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+      margin: 0 auto;
+      max-width: 1280px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .mentor-section::before {
+      content: '';
+      position: absolute;
+      top: -100px; right: -100px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .mentor-text h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      margin-bottom: 1rem;
+      line-height: 1.1;
+    }
+
+    .mentor-text p {
+      color: var(--text2);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .mentor-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .mentor-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: var(--text2);
+    }
+
+    .mentor-list li::before {
+      content: '✓';
+      color: var(--emerald);
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .mentor-ui {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .mentor-ui-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+
+    .mentor-ui-card:hover {
+      border-color: rgba(99,102,241,0.3);
+      transform: translateX(4px);
+    }
+
+    .mentor-ui-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .mentor-ui-card h4 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .mentor-ui-card p {
+      font-size: 0.75rem;
+      color: var(--text3);
+      margin: 0;
+    }
+
+    /* ── CYCLE DEMO ── */
+    .cycle-demo {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 2rem;
+      overflow: hidden;
+    }
+
+    .cycle-demo-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1.5rem;
+    }
+
+    .cycle-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+
+    .cycle-blocks {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+
+    .cycle-block {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      font-size: 0.75rem;
+    }
+
+    .cycle-block-num {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: var(--indigo2);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800;
+      font-size: 0.7rem;
+      margin: 0 auto 6px;
+    }
+
+    .cycle-block-name {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.7rem;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cycle-block-tag {
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .tag-teorica  { background: rgba(16,185,129,0.15); color: #34d399; }
+    .tag-calculo  { background: rgba(244,63,94,0.15);  color: #fb7185; }
+    .tag-analitica{ background: rgba(245,158,11,0.15); color: #fcd34d; }
+
+    .cycle-block-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--indigo2);
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    /* ── HEATMAP DEMO ── */
+    .heatmap-demo {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 1rem;
+    }
+
+    .heatmap-row {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .heatmap-label {
+      font-size: 0.65rem;
+      color: var(--text3);
+      width: 90px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .heatmap-cell {
+      width: 14px; height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+
+    .heatmap-cell:hover { transform: scale(1.3); cursor: crosshair; }
+
+    .cell-empty   { background: var(--bg3); border: 1px solid var(--border); }
+    .cell-orange  { background: #f97316; }
+    .cell-red     { background: #ef4444; }
+    .cell-teal    { background: #14b8a6; }
+    .cell-sky     { background: #0ea5e9; }
+    .cell-purple  { background: #a855f7; }
+    .cell-emerald { background: #10b981; }
+
+    /* ── METHOD SECTION ── */
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+
+    .method-step {
+      position: relative;
+      padding: 2rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+    }
+
+    .step-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 4rem;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--border2);
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .method-step h3 {
+      font-size: 1rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+
+    .method-step p {
+      font-size: 0.875rem;
+      color: var(--text2);
+    }
+
+    /* ── TIMER DEMO ── */
+    .timer-ring-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 2rem;
+    }
+
+    .timer-ring {
+      position: relative;
+      width: 160px; height: 160px;
+    }
+
+    .timer-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .timer-ring-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .timer-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+    }
+
+    .timer-phase {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+
+    .phase-pills {
+      display: flex;
+      gap: 8px;
+    }
+
+    .phase-pill {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .phase-pill.active-pill { background: rgba(99,102,241,0.2); color: var(--indigo2); border: 1px solid rgba(99,102,241,0.4); }
+    .phase-pill.inactive-pill { background: var(--bg3); color: var(--text3); border: 1px solid var(--border); }
+
+    /* ── TESTIMONIALS ── */
+    .testimonial-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+
+    .testimonial-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.75rem;
+    }
+
+    .testimonial-stars {
+      color: var(--amber);
+      font-size: 0.8rem;
+      margin-bottom: 1rem;
+      letter-spacing: 2px;
+    }
+
+    .testimonial-text {
+      font-size: 0.9rem;
+      color: var(--text2);
+      font-style: italic;
+      margin-bottom: 1.25rem;
+      line-height: 1.7;
+    }
+
+    .testimonial-author {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .author-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    .author-name {
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .author-role {
+      font-size: 0.75rem;
+      color: var(--text3);
+    }
+
+    /* ── CTA FINAL ── */
+    .cta-section {
+      text-align: center;
+      padding: 120px clamp(1.5rem, 5vw, 4rem);
+      position: relative;
+    }
+
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse at center, rgba(99,102,241,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-section h2 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      margin-bottom: 1rem;
+    }
+
+    .cta-section p {
+      color: var(--text2);
+      max-width: 500px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem clamp(1.5rem, 5vw, 4rem);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      color: var(--text3);
+      font-size: 0.8rem;
+    }
+
+    footer a { color: var(--text3); text-decoration: none; transition: color 0.2s; }
+    footer a:hover { color: var(--text2); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeSlideDown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 0;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .mentor-section { grid-template-columns: 1fr; gap: 2rem; }
+      .method-grid { grid-template-columns: 1fr; }
+      .cycle-blocks { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── TICKER ── */
+    .ticker-wrap {
+      overflow: hidden;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 0;
+    }
+
+    .ticker {
+      display: flex;
+      gap: 3rem;
+      animation: ticker-scroll 25s linear infinite;
+      white-space: nowrap;
+    }
+
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text3);
+      flex-shrink: 0;
+    }
+
+    .ticker-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+
+    @keyframes ticker-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav>
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">🧠</div>
+      HBC
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Funcionalidades</a></li>
+      <li><a href="#metodo">Método</a></li>
+      <li><a href="#mentoria">Mentoria</a></li>
+      <li><a href="../" class="nav-cta">Acessar App →</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-glow-2"></div>
+
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      Método Gleyson Azevedo · Versão Digital
+    </div>
+
+    <h1>
+      Estude menos.<br/>
+      <span class="accent">Aprenda mais.</span><br/>
+      Passe.
+    </h1>
+
+    <p class="hero-sub">
+      O sistema definitivo de gestão de alta performance para concursos públicos.
+      Ciclos antifadiga, edital verticalizado e mentoria estruturada — tudo num ambiente sem distrações.
+    </p>
+
+    <div class="hero-actions">
+      <a href="../" class="btn-primary">
+        ⚡ Acessar o Sistema
+      </a>
+      <a href="#features" class="btn-outline">
+        Ver funcionalidades →
+      </a>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-num">3</span>
+        <span class="stat-label">Fases de Estudo</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">30D</span>
+        <span class="stat-label">Heatmap de Controle</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">∞</span>
+        <span class="stat-label">Disciplinas no Edital</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">100%</span>
+        <span class="stat-label">Foco Total</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TICKER -->
+  <div class="ticker-wrap">
+    <div class="ticker">
+      <span class="ticker-item"><span class="ticker-dot" style="background:#6366f1"></span>Ciclo Antifadiga</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#f43f5e"></span>Edital Verticalizado</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#10b981"></span>Heatmap 30 Dias</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#f59e0b"></span>Cronômetro 3 Fases</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#a855f7"></span>Mentoria Estruturada</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#14b8a6"></span>Sincronização em Nuvem</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#6366f1"></span>Ciclo Antifadiga</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#f43f5e"></span>Edital Verticalizado</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#10b981"></span>Heatmap 30 Dias</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#f59e0b"></span>Cronômetro 3 Fases</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#a855f7"></span>Mentoria Estruturada</span>
+      <span class="ticker-item"><span class="ticker-dot" style="background:#14b8a6"></span>Sincronização em Nuvem</span>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="reveal">
+      <span class="section-label">⚡ Funcionalidades</span>
+      <h2 class="section-title">Tudo que você precisa para passar.</h2>
+      <p class="section-sub">Cada funcionalidade foi desenhada para eliminar procrastinação e maximizar sua retenção de conteúdo.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon indigo">⏱️</div>
+        <h3>Cronômetro Multi-Fase</h3>
+        <p>Engine de estudo inteligente com 3 fases parametrizadas: Reprise inicial, Teoria intensiva (85%) e Validação de Questões (5%). Trava de tela total na Fase 1.</p>
+        <span class="feature-tag indigo">🟢 Foco Máximo</span>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon rose">🔄</div>
+        <h3>Ciclo Antifadiga</h3>
+        <p>Monte sua fila de disciplinas com análise cognitiva em tempo real. O sistema alerta quando você encavalha matérias pesadas e previne o esgotamento mental.</p>
+        <span class="feature-tag rose">🔴 Anti-exaustão</span>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon amber">📋</div>
+        <h3>Edital Verticalizado</h3>
+        <p>Cole o edital bruto. A IA extrai automaticamente as disciplinas e tópicos. Avance cada item entre Fase 1, 2 e 3 conforme sua maturidade cresce.</p>
+        <span class="feature-tag amber">🎯 Extração Inteligente</span>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon emerald">📅</div>
+        <h3>Heatmap 30 Dias</h3>
+        <p>Instâncias fotográficas de ciclo com contribution graph estilo GitHub. Veja de relance quais matérias estão descobertas e mantenha 100% de cobertura.</p>
+        <span class="feature-tag emerald">📈 Rastreio Visual</span>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon teal">🌙</div>
+        <h3>Deep Focus Audio</h3>
+        <p>Ruído branco, marrom, ondas beta e chuva gerados por síntese via Web Audio API. Som de alta qualidade sem precisar de conexão ou app externo.</p>
+        <span class="feature-tag teal">🎧 Ambiente Imersivo</span>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon purple">☁️</div>
+        <h3>Sync em Nuvem</h3>
+        <p>Seu progresso sincronizado em todos os dispositivos via Supabase. Offline first com merge inteligente — acesse seus dados em qualquer lugar.</p>
+        <span class="feature-tag purple">🔗 Multi-dispositivo</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- DEMO CICLO -->
+  <section>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;" class="reveal" id="demo-grid">
+      <div>
+        <span class="section-label">🔄 Ciclo de Estudos</span>
+        <h2 class="section-title" style="font-size:clamp(1.8rem,3vw,2.5rem)">Sua fila cognitiva, visual e antifadiga.</h2>
+        <p style="color:var(--text2); font-size:0.95rem; margin-bottom:1.5rem;">
+          O HBC calcula a densidade cognitiva do seu ciclo em tempo real. Matérias Teóricas (🟢), de Cálculo (🔴) e Analíticas (🟡) são distribuídas para evitar choque mental.
+        </p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:0.6rem;">
+          <li style="display:flex;gap:8px;font-size:0.875rem;color:var(--text2)"><span style="color:var(--emerald)">✓</span> Alertas dinâmicos de carga cognitiva</li>
+          <li style="display:flex;gap:8px;font-size:0.875rem;color:var(--text2)"><span style="color:var(--emerald)">✓</span> Duração calculada por matéria</li>
+          <li style="display:flex;gap:8px;font-size:0.875rem;color:var(--text2)"><span style="color:var(--emerald)">✓</span> Histórico completo de ciclos anteriores</li>
+          <li style="display:flex;gap:8px;font-size:0.875rem;color:var(--text2)"><span style="color:var(--emerald)">✓</span> Cronômetro integrado à fila</li>
+        </ul>
+      </div>
+
+      <div class="cycle-demo reveal">
+        <div class="cycle-demo-header">
+          <div class="cycle-dot" style="background:#ef4444"></div>
+          <div class="cycle-dot" style="background:#f59e0b"></div>
+          <div class="cycle-dot" style="background:#10b981"></div>
+          <span style="font-size:0.75rem;color:var(--text3);margin-left:8px;font-family:'JetBrains Mono',monospace">Ciclo Ativo · 6h 30m</span>
+        </div>
+        <div class="cycle-blocks">
+          <div class="cycle-block">
+            <div class="cycle-block-num">1</div>
+            <div class="cycle-block-name">Dir. Penal</div>
+            <span class="cycle-block-tag tag-teorica">Teórica</span>
+            <div class="cycle-block-time">1h 30m</div>
+          </div>
+          <div class="cycle-block">
+            <div class="cycle-block-num">2</div>
+            <div class="cycle-block-name">Estatística</div>
+            <span class="cycle-block-tag tag-calculo">Cálculo</span>
+            <div class="cycle-block-time">45m</div>
+          </div>
+          <div class="cycle-block">
+            <div class="cycle-block-num">3</div>
+            <div class="cycle-block-name">Língua Port.</div>
+            <span class="cycle-block-tag tag-analitica">Analítica</span>
+            <div class="cycle-block-time">1h 00m</div>
+          </div>
+          <div class="cycle-block">
+            <div class="cycle-block-num">4</div>
+            <div class="cycle-block-name">Dir. Adm.</div>
+            <span class="cycle-block-tag tag-teorica">Teórica</span>
+            <div class="cycle-block-time">1h 15m</div>
+          </div>
+          <div class="cycle-block">
+            <div class="cycle-block-num">5</div>
+            <div class="cycle-block-name">Raciocínio</div>
+            <span class="cycle-block-tag tag-calculo">Cálculo</span>
+            <div class="cycle-block-time">45m</div>
+          </div>
+          <div class="cycle-block">
+            <div class="cycle-block-num">6</div>
+            <div class="cycle-block-name">Dir. Const.</div>
+            <span class="cycle-block-tag tag-teorica">Teórica</span>
+            <div class="cycle-block-time">1h 15m</div>
+          </div>
+          <div class="cycle-block" style="opacity:0.4">
+            <div class="cycle-block-num" style="background:rgba(99,102,241,0.05)">+</div>
+            <div class="cycle-block-name">Mais...</div>
+            <span class="cycle-block-tag tag-analitica">Analítica</span>
+            <div class="cycle-block-time">—</div>
+          </div>
+          <div class="cycle-block" style="background:rgba(99,102,241,0.05); border-color:rgba(99,102,241,0.2)">
+            <div style="font-size:1.2rem; margin-bottom:4px">⚠️</div>
+            <div style="font-size:0.65rem;color:#fcd34d;font-weight:700">Alerta<br/>Cognitivo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MENTOR SECTION -->
+  <section id="mentoria" style="padding-top:0">
+    <div class="mentor-section reveal">
+      <div class="mentor-text">
+        <span class="section-label">👨‍🏫 Sistema de Mentoria</span>
+        <h2>Mentor e aluno.<br/>Uma plataforma.</h2>
+        <p>O HBC possui um módulo completo de mentoria onde o mentor gerencia o edital de cada aluno, define o ciclo e acompanha o progresso sem interferências.</p>
+        <ul class="mentor-list">
+          <li>Visão exclusiva de mentor com painel de mentorados</li>
+          <li>Templates de Edital para atribuição em massa</li>
+          <li>Extração inteligente de edital por IA com 1 clique</li>
+          <li>Controle de fase por disciplina (1, 2 ou 3)</li>
+          <li>Alunos em modo somente-leitura — sem alterações não autorizadas</li>
+          <li>Sincronização bidirecional mentor ↔ aluno via Supabase</li>
+        </ul>
+      </div>
+
+      <div class="mentor-ui">
+        <div class="mentor-ui-card">
+          <div class="mentor-ui-icon" style="background:rgba(99,102,241,0.1)">📋</div>
+          <div>
+            <h4>Biblioteca de Templates</h4>
+            <p>Editais prontos para atribuir a qualquer aluno instantaneamente</p>
+          </div>
+        </div>
+        <div class="mentor-ui-card">
+          <div class="mentor-ui-icon" style="background:rgba(16,185,129,0.1)">✅</div>
+          <div>
+            <h4>Aluno Protegido</h4>
+            <p>Categorias e fases bloqueadas para o aluno — só o mentor configura</p>
+          </div>
+        </div>
+        <div class="mentor-ui-card">
+          <div class="mentor-ui-icon" style="background:rgba(245,158,11,0.1)">🔄</div>
+          <div>
+            <h4>Ciclo Sincronizado</h4>
+            <p>O ciclo do aluno reflete exatamente o edital configurado pelo mentor</p>
+          </div>
+        </div>
+        <div class="mentor-ui-card">
+          <div class="mentor-ui-icon" style="background:rgba(168,85,247,0.1)">🧠</div>
+          <div>
+            <h4>Extração Inteligente</h4>
+            <p>Cole o PDF do edital — o sistema detecta matérias e tópicos automaticamente</p>
+          </div>
+        </div>
+        <div class="mentor-ui-card">
+          <div class="mentor-ui-icon" style="background:rgba(244,63,94,0.1)">📊</div>
+          <div>
+            <h4>Heatmap por Aluno</h4>
+            <p>Visualize o grid de 30 dias de cada mentorado e detecte lacunas</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- METHOD -->
+  <section id="metodo">
+    <div class="reveal">
+      <span class="section-label">🎯 O Método</span>
+      <h2 class="section-title">Baseado em ciência cognitiva.</h2>
+      <p class="section-sub">O HBC é a implementação digital do Método Gleyson Azevedo, um sistema de alta performance desenvolvido para concursos de alta competição.</p>
+    </div>
+
+    <div class="method-grid">
+      <div class="method-step reveal">
+        <span class="step-number">01</span>
+        <h3>Monte o Edital</h3>
+        <p>Cole o conteúdo programático crú. A IA verticalizará automaticamente em disciplinas e tópicos hierárquicos, prontos para rastreio de maturidade.</p>
+      </div>
+      <div class="method-step reveal">
+        <span class="step-number">02</span>
+        <h3>Crie o Ciclo</h3>
+        <p>Monte a fila semanal de disciplinas. O sistema calcula a carga cognitiva e avisa quando você está arriscando fadiga mental com sequências ineficientes.</p>
+      </div>
+      <div class="method-step reveal">
+        <span class="step-number">03</span>
+        <h3>Execute as Fases</h3>
+        <p>O cronômetro divide cada sessão em Reprise (3min), Teoria (85%) e Questões (5%). Tela bloqueada na fase 1 para foco absoluto.</p>
+      </div>
+      <div class="method-step reveal">
+        <span class="step-number">04</span>
+        <h3>Registre o Progresso</h3>
+        <p>Marque tópicos respondidos, acertos e erros por fase. O HBC calcula o % de acerto por tópico e sinaliza os "tópicos de atenção".</p>
+      </div>
+      <div class="method-step reveal">
+        <span class="step-number">05</span>
+        <h3>Controle os 30 Dias</h3>
+        <p>O heatmap visual de 30 dias garante que você não esqueça nenhuma matéria do ciclo. Instâncias fotográficas mantêm o histórico completo.</p>
+      </div>
+      <div class="method-step reveal">
+        <span class="step-number">06</span>
+        <h3>Avance de Fase</h3>
+        <p>Quando uma disciplina atinge maturidade (Fase 3), ela fica marcada como dominada. A fila se reorganiza automaticamente para maximizar revisões estratégicas.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- TESTIMONIALS -->
+  <section>
+    <div class="reveal" style="text-align:center; max-width:600px; margin:0 auto 3rem;">
+      <span class="section-label">💬 Resultados</span>
+      <h2 class="section-title">Quem usa, aprova.</h2>
+    </div>
+
+    <div class="testimonial-grid">
+      <div class="testimonial-card reveal">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"O ciclo antifadiga mudou completamente minha relação com o estudo. Antes eu travava em matérias pesadas. Agora o sistema me avisa quando eu preciso alternar."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background:rgba(99,102,241,0.2);color:var(--indigo2)">MR</div>
+          <div>
+            <div class="author-name">Mariana R.</div>
+            <div class="author-role">Aprovada SEFAZ-BA · Auditor Fiscal</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card reveal">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"A extração inteligente de edital me poupou horas. Colei o PDF, o sistema identificou todas as 18 disciplinas e já criou os tópicos. Impressionante."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background:rgba(244,63,94,0.2);color:#fb7185">CS</div>
+          <div>
+            <div class="author-name">Carlos S.</div>
+            <div class="author-role">Aprovado TRT · Analista Judiciário</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card reveal">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Como mentora, o módulo de gestão de alunos é perfeito. Consigo ver o heatmap de cada mentorado, atribuir o edital e garantir que o ciclo seja seguido."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background:rgba(16,185,129,0.2);color:#34d399">PA</div>
+          <div>
+            <div class="author-name">Priscila A.</div>
+            <div class="author-role">Mentora de Concursos · 40 alunos</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section class="cta-section">
+    <div class="reveal">
+      <h2>Pronto para <span style="color:var(--indigo2)">passar</span>?</h2>
+      <p>O sistema está funcionando. Seu progresso, seu ritmo, sua aprovação.</p>
+      <div class="hero-actions">
+        <a href="../" class="btn-primary">⚡ Acessar o HBC agora</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>HBC · Método de Alta Performance · <span id="year"></span></span>
+    <span>Baseado no <a href="#">Método Gleyson Azevedo</a> · Construído com React + Vite</span>
+  </footer>
+
+  <script>
+    // Year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Scroll reveal
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(el => {
+        if (el.isIntersecting) {
+          el.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Timer animation
+    let progress = 72;
+    let seconds = 4380; // 1h 13m
+
+    function updateTimer() {
+      seconds = Math.max(0, seconds - 1);
+      if (seconds === 0) seconds = 5400;
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      const display = document.getElementById('timer-display');
+      if (display) {
+        display.textContent = h > 0
+          ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+          : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      }
+
+      progress = ((5400 - seconds) / 5400) * 100;
+      const circle = document.getElementById('timer-circle');
+      if (circle) {
+        const circumference = 2 * Math.PI * 60;
+        circle.style.strokeDasharray = circumference;
+        circle.style.strokeDashoffset = circumference - (progress / 100) * circumference;
+      }
+    }
+
+    setInterval(updateTimer, 1000);
+
+    // Responsive: fix the demo grid on mobile
+    const demoGrid = document.getElementById('demo-grid');
+    if (demoGrid && window.innerWidth < 768) {
+      demoGrid.style.gridTemplateColumns = '1fr';
+    }
+  </script>
+</body>
+</html>
