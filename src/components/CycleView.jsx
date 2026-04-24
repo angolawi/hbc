@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -11,6 +12,7 @@ const TAGS = {
 };
 
 export default function CycleView({ setActiveTab }) {
+  const { alert } = useNotification();
   const [step, setStep] = useState(1);
   const [disciplines, setDisciplines] = useState([]);
   const [activeCycle, setActiveCycle] = useState(null);
@@ -21,11 +23,6 @@ export default function CycleView({ setActiveTab }) {
   const [draggedIdx, setDraggedIdx] = useState(null);
   const [showFatigueWarning, setShowFatigueWarning] = useState(false);
   const [fatigueMsg, setFatigueMsg] = useState("");
-  const [modalData, setModalData] = useState({ isOpen: false, title: "", message: "", type: "info" });
-
-  const customAlert = (title, message, type = "info") => {
-    setModalData({ isOpen: true, title, message, type });
-  };
 
   useEffect(() => {
     const editalData = localStorage.getItem('simpl_edital');
@@ -66,12 +63,12 @@ export default function CycleView({ setActiveTab }) {
     // Validate
     const selectedList = Object.values(selectedDiscs);
     if (selectedList.length === 0) {
-      customAlert("Selecione Disciplinas", "Você precisa selecionar pelo menos uma disciplina para gerar o ciclo.", "warning");
+      alert("Você precisa selecionar pelo menos uma disciplina para gerar o ciclo.", "error");
       return;
     }
     const missingTag = selectedList.find(d => !d.tag);
     if (missingTag) {
-      customAlert("Perfil em Branco", `Selecione o perfil cognitivo para: ${missingTag.nome}`, "warning");
+      alert(`Selecione o perfil cognitivo para: ${missingTag.nome}`, "error");
       return;
     }
 
@@ -203,12 +200,8 @@ export default function CycleView({ setActiveTab }) {
     
     localStorage.setItem('simpl_ciclo', JSON.stringify(generatedCycle));
     setStep(1); // Reset step back to initial view
-    customAlert(
-      "Ciclo Salvo com Sucesso!", 
-      "O cronômetro estará travado nesta ordem.\n\nLembre-se:\n1 - Não é um calendário semanal, é uma fila contínua.\n2 - A cada bloco, tire de 15 a 20 minutos de pausa difusa!", 
-      "success"
-    );
-    // In a real app we might redirect to timer view here.
+    alert("Ciclo Salvo com Sucesso! O cronômetro estará travado nesta ordem.", "success");
+    if (setActiveTab) setActiveTab('ciclo');
   };
 
   const formatMins = (mins) => {
@@ -285,7 +278,7 @@ export default function CycleView({ setActiveTab }) {
                 fullWidth 
                 onClick={() => {
                     if (Object.keys(selectedDiscs).length === 0) {
-                        customAlert("Nenhuma Disciplina", "Você precisa selecionar pelo menos uma disciplina para continuar.", "warning");
+                        alert("Você precisa selecionar pelo menos uma disciplina para continuar.", "error");
                         return;
                     }
                     setStep(2);
@@ -458,32 +451,6 @@ export default function CycleView({ setActiveTab }) {
         </div>
       )}
       </div>
-
-      {modalData.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-950 border border-zinc-800 shadow-2xl rounded-2xl p-6 max-w-md w-full animate-in zoom-in-95 duration-200 relative overflow-hidden">
-            <div className={`absolute top-0 left-0 w-full h-1 ${modalData.type === 'success' ? 'bg-emerald-500' : modalData.type === 'warning' ? 'bg-amber-500' : 'bg-indigo-500'}`} />
-            <div className="flex items-center gap-3 mb-4 mt-2">
-              {modalData.type === 'warning' && <AlertTriangle className="text-amber-500 w-6 h-6" />}
-              {modalData.type === 'success' && <span className="text-emerald-500 text-2xl">🎉</span>}
-              {modalData.type === 'info' && <Info className="text-indigo-400 w-6 h-6" />}
-              <h3 className="text-xl font-bold text-zinc-100">{modalData.title}</h3>
-            </div>
-            <p className="text-zinc-400 text-sm whitespace-pre-wrap leading-relaxed mb-8">
-              {modalData.message}
-            </p>
-            <Button fullWidth onClick={() => {
-              setModalData({ ...modalData, isOpen: false });
-              if (modalData.type === 'success' && setActiveTab) {
-                setActiveTab('ciclo');
-              }
-            }} className={modalData.type === 'success' ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-white"}>
-              Entendido
-            </Button>
-          </div>
-        </div>
-      )}
-
     </section>
   );
 }

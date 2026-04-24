@@ -1,10 +1,12 @@
 import { useState, useEffect, Fragment } from 'react';
+import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Plus, Trash, LayoutGrid } from 'lucide-react';
 
 export default function WeeklyStatsView() {
+  const { alert, confirm } = useNotification();
   const [disciplines, setDisciplines] = useState([]);
   const [weeks, setWeeks] = useState([]);
   
@@ -54,12 +56,12 @@ export default function WeeklyStatsView() {
         dt.setDate(dt.getDate() + 7);
         baseDateStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       } else {
-         alert("Não foi possível identificar a data da última semana. Por favor, certifique-se de que está no formato DD/MM/AAAA.");
+         alert("Não foi possível identificar a data da última semana. Por favor, certifique-se de que está no formato DD/MM/AAAA.", "error");
          return;
       }
     } else {
       if (!newWeekName.trim()) {
-        alert("Insira a data do término do primeiro ciclo de avaliação.");
+        alert("Insira a data do término do primeiro ciclo de avaliação.", "error");
         return;
       }
       baseDateStr = newWeekName.trim();
@@ -75,8 +77,9 @@ export default function WeeklyStatsView() {
     setNewWeekName('');
   };
 
-  const removeWeek = (id) => {
-    if (window.confirm("Remover esta semana? Isso não apaga os dados já digitados, mas esconderá a coluna.")) {
+  const removeWeek = async (id) => {
+    const confirmed = await confirm("Remover esta semana? Isso não apaga os dados já digitados, mas esconderá a coluna.", { variant: 'danger' });
+    if (confirmed) {
       saveWeeks(weeks.filter(w => w.id !== id));
     }
   };

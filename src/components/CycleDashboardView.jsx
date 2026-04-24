@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Check, Trash } from 'lucide-react';
+import { useNotification } from '../context/NotificationContext';
 
 export default function CycleDashboardView() {
+    const { alert, confirm } = useNotification();
     const [instances, setInstances] = useState([]);
     const [progress, setProgress] = useState({});
     const [activeBrush, setActiveBrush] = useState(1);
@@ -54,7 +56,7 @@ export default function CycleDashboardView() {
             const parsed = JSON.parse(cicloData);
             uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
         } else {
-            alert("Você ainda não gerou um ciclo (sem disciplinas na fila). Gere um ciclo primeiro na aba 'Criar Ciclo'.");
+            alert("Você ainda não gerou um ciclo (sem disciplinas na fila). Gere um ciclo primeiro na aba 'Criar Ciclo'.", "error");
             return;
         }
 
@@ -73,8 +75,9 @@ export default function CycleDashboardView() {
         localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
     };
 
-    const handleRemoveInstance = (id) => {
-        if (window.confirm("Certeza que deseja remover esta instância visual do grid? Os dados registrados nas datas continuarão salvos no sistema.")) {
+    const handleRemoveInstance = async (id) => {
+        const confirmed = await confirm("Certeza que deseja remover esta instância visual do grid? Os dados registrados nas datas continuarão salvos no sistema.", { variant: 'danger' });
+        if (confirmed) {
             const updated = instances.filter(i => i.id !== id);
             setInstances(updated);
             localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));

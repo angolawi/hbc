@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, Camera, Upload, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Camera, Upload, CheckCircle, Wind, Waves, Zap, Volume2, Settings2, CloudRain } from 'lucide-react';
+import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Select, Input } from './ui/Input';
+import { audioEngine } from '../utils/audioEngine';
 
 const getPhaseWorkflows = (phase, repriseTime, estudoTime, aplicacaoTime, revisaoTime, descansoTime) => {
   if (phase === "1") {
@@ -30,6 +32,7 @@ const getPhaseWorkflows = (phase, repriseTime, estudoTime, aplicacaoTime, revisa
 };
 
 export default function TimerView() {
+  const { alert, confirm } = useNotification();
   const [timerRunning, setTimerRunning] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState('1');
 
@@ -45,6 +48,8 @@ export default function TimerView() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isCounting, setIsCounting] = useState(false);
   const [showTimerText, setShowTimerText] = useState(true);
+  const [activeNoise, setActiveNoise] = useState('none');
+  const [noiseVolume, setNoiseVolume] = useState(0.5);
   const timerRef = useRef(null);
 
   // Validation States
@@ -145,7 +150,7 @@ export default function TimerView() {
 
   const proceedToNextStep = () => {
     if (!canAdvance()) {
-      alert("Validação pendente de requisitos para progredir.");
+      alert("Validação pendente de requisitos para progredir.", "error");
       return;
     }
 
@@ -170,9 +175,9 @@ export default function TimerView() {
   const handleAdvanceClick = () => {
     if (!canAdvance()) {
       if (currentSteps[stepIndex]?.requiresUpload) {
-        alert("Ação Requerida: Anexe sua revisão.");
+        alert("Ação Requerida: Anexe sua revisão.", "error");
       } else if (currentSteps[stepIndex]?.requiresCheckbox || currentSteps[stepIndex]?.requiresMultiCheckboxes) {
-        alert("Atenção: Validação OBRIGATÓRIA pendente.");
+        alert("Atenção: Validação OBRIGATÓRIA pendente.", "error");
       }
       return;
     }
@@ -199,9 +204,30 @@ export default function TimerView() {
     }
   };
 
+  const handleNoiseToggle = (type) => {
+    if (activeNoise === type) {
+      audioEngine.stop();
+      setActiveNoise('none');
+    } else {
+      setActiveNoise(type);
+      if (type === 'white') audioEngine.playWhiteNoise();
+      if (type === 'brown') audioEngine.playBrownNoise();
+      if (type === 'beta') audioEngine.playBetaWaves();
+      if (type === 'rain') audioEngine.playRainNoise();
+    }
+  };
+
+  const handleVolumeChange = (e) => {
+    const vol = parseFloat(e.target.value);
+    setNoiseVolume(vol);
+    audioEngine.setVolume(vol);
+  };
+
   const handleCancelSession = () => {
     setIsCounting(false);
     clearInterval(timerRef.current);
+    audioEngine.stop();
+    setActiveNoise('none');
     setTimerRunning(false);
     setCurrentSteps([]);
     setShowMetricsModal(false);
@@ -212,18 +238,18 @@ export default function TimerView() {
 
   const handleSubmitMetrics = () => {
     if (!modalResolvidas || !modalCertas || !modalDisc || !modalSemana) {
-      alert("Preencha Disciplina, Semana, Quantidade Resolvida e Certa."); return;
+      alert("Preencha Disciplina, Semana, Quantidade Resolvida e Certa.", "error"); return;
     }
-    
+
     // Calcula tempo gasto na sessão para o Dashboard
     let sessionMinutes = 0;
     currentSteps.forEach(s => {
-       sessionMinutes += Math.floor(s.duration / 60);
+      sessionMinutes += Math.floor(s.duration / 60);
     });
     const savedHours = localStorage.getItem('simpl_horas_estudadas');
     const prevMins = savedHours ? parseInt(savedHours, 10) : 0;
     localStorage.setItem('simpl_horas_estudadas', (prevMins + sessionMinutes).toString());
-    
+
     // Motor Numérico 1 e 2 Acumulado (Tópico e Categoria Global)
     const storedDisc = JSON.parse(localStorage.getItem('simpl_edital') || '[]');
     const today = new Date().toISOString().split('T')[0];
@@ -235,8 +261,8 @@ export default function TimerView() {
         let newWeeklyStats = { ...d.weeklyStats };
         let curWStats = newWeeklyStats[modalSemana] || { certas: '', resolvidas: '' };
         newWeeklyStats[modalSemana] = {
-           certas: (Number(curWStats.certas) || 0) + Number(modalCertas),
-           resolvidas: (Number(curWStats.resolvidas) || 0) + Number(modalResolvidas)
+          certas: (Number(curWStats.certas) || 0) + Number(modalCertas),
+          resolvidas: (Number(curWStats.resolvidas) || 0) + Number(modalResolvidas)
         };
 
         // Motor 1 (Micro Tópico)
@@ -246,17 +272,17 @@ export default function TimerView() {
             weeklyStats: newWeeklyStats,
             topicos: d.topicos.map(t => {
               if (t.id === modalTopico) {
-                 let curPStats = t[phaseKey] || { certas: '', resolvidas: '', inicio: '', conclusao: '' };
-                 return {
-                   ...t,
-                   [phaseKey]: {
-                      ...curPStats,
-                      certas: (Number(curPStats.certas) || 0) + Number(modalCertas),
-                      resolvidas: (Number(curPStats.resolvidas) || 0) + Number(modalResolvidas),
-                      inicio: curPStats.inicio || today, 
-                      conclusao: today 
-                   }
-                 }
+                let curPStats = t[phaseKey] || { certas: '', resolvidas: '', inicio: '', conclusao: '' };
+                return {
+                  ...t,
+                  [phaseKey]: {
+                    ...curPStats,
+                    certas: (Number(curPStats.certas) || 0) + Number(modalCertas),
+                    resolvidas: (Number(curPStats.resolvidas) || 0) + Number(modalResolvidas),
+                    inicio: curPStats.inicio || today,
+                    conclusao: today
+                  }
+                }
               }
               return t;
             })
@@ -269,12 +295,15 @@ export default function TimerView() {
     });
 
     localStorage.setItem('simpl_edital', JSON.stringify(updatedDisc));
-    alert("Dados Injetados nas Planilhas de Controle! Estatísticas atualizadas com Sucesso.");
+    alert("Dados Injetados nas Planilhas de Controle! Estatísticas atualizadas com Sucesso.", "success");
     handleCancelSession();
   };
 
   useEffect(() => {
-    return () => clearInterval(timerRef.current);
+    return () => {
+      clearInterval(timerRef.current);
+      audioEngine.stop();
+    };
   }, []);
 
   if (!timerRunning) {
@@ -347,7 +376,7 @@ export default function TimerView() {
 
   return (
     <section className="animate-in fade-in duration-500 min-h-screen flex flex-col p-4 md:p-8 bg-zinc-950 w-full rounded-none">
-      
+
       {/* OVERLAY MODAL INTEGRAÇÃO (Aparece apenas na Finalização) */}
       {showMetricsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -355,23 +384,23 @@ export default function TimerView() {
             <div className="p-8 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center">
               <div>
                 <h2 className="text-2xl font-bold text-zinc-100 flex items-center gap-3">
-                  <CheckCircle className="text-emerald-500" size={28}/> 
+                  <CheckCircle className="text-emerald-500" size={28} />
                   Sessão Concluída!
                 </h2>
                 <p className="text-zinc-400 text-sm mt-1">Registrar as métricas automaticamente nas Planilhas e Edital.</p>
               </div>
             </div>
             <div className="p-8 space-y-6 bg-zinc-950/50">
-              
+
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-zinc-400 font-medium text-xs uppercase tracking-wider mb-2">Disciplina Estudada</label>
-                  <select value={modalDisc} onChange={e => {setModalDisc(e.target.value); setModalTopico('');}} className="flex w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
+                  <select value={modalDisc} onChange={e => { setModalDisc(e.target.value); setModalTopico(''); }} className="flex w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
                     <option value="" disabled>-- Selecionar --</option>
                     {savedDisciplines.map(d => <option key={d.id} value={d.id}>{d.nome}</option>)}
                   </select>
                 </div>
-                
+
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-zinc-400 font-medium text-xs uppercase tracking-wider mb-2">Semana Destino (Estatística)</label>
                   <select value={modalSemana} onChange={e => setModalSemana(e.target.value)} className="flex w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
@@ -393,12 +422,12 @@ export default function TimerView() {
               <div className="bg-zinc-900 border border-zinc-800/80 p-6 rounded-xl flex gap-6 items-center">
                 <div className="flex-1">
                   <label className="block text-zinc-400 font-bold text-xs uppercase tracking-wider mb-2 text-center">Resolvidas</label>
-                  <Input type="number" min="0" placeholder="0" className="text-center h-12 text-lg font-bold" value={modalResolvidas} onChange={e => setModalResolvidas(e.target.value)}/>
+                  <Input type="number" min="0" placeholder="0" className="text-center h-12 text-lg font-bold" value={modalResolvidas} onChange={e => setModalResolvidas(e.target.value)} />
                 </div>
                 <div className="text-xl font-black text-zinc-700">/</div>
                 <div className="flex-1">
                   <label className="block text-emerald-500 font-bold text-xs uppercase tracking-wider mb-2 text-center">Certas</label>
-                  <Input type="number" min="0" placeholder="0" className="text-center h-12 text-lg font-bold border-emerald-900 focus:ring-emerald-500" value={modalCertas} onChange={e => setModalCertas(e.target.value)}/>
+                  <Input type="number" min="0" placeholder="0" className="text-center h-12 text-lg font-bold border-emerald-900 focus:ring-emerald-500" value={modalCertas} onChange={e => setModalCertas(e.target.value)} />
                 </div>
               </div>
 
@@ -418,7 +447,10 @@ export default function TimerView() {
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100 mb-1">Fase {selectedPhase} — Protocolo Deep Focus</h1>
           <p className="text-indigo-400 text-sm font-medium">Bloqueio Atencional Ativado. Abstraia do mundo agora.</p>
         </div>
-        <Button variant="danger" size="sm" onClick={() => { if (window.confirm("Abortar e perder todo o progresso do cronômetro?")) handleCancelSession() }}>
+        <Button variant="danger" size="sm" onClick={async () => { 
+          const confirmed = await confirm("Abortar e perder todo o progresso do cronômetro?", { variant: 'danger', title: 'Abortar Sessão' });
+          if (confirmed) handleCancelSession();
+        }}>
           Abortar Sessão
         </Button>
       </header>
@@ -441,8 +473,8 @@ export default function TimerView() {
 
           <div className="relative flex items-center justify-center w-[18rem] h-[18rem] md:w-[24rem] md:h-[24rem] my-6">
             <svg viewBox="0 0 100 100" className="absolute w-full h-full -rotate-90 drop-shadow-xl overflow-visible">
-              <circle className="text-zinc-800/70" strokeWidth="4" stroke="currentColor" fill="transparent" r="48" cx="50" cy="50"/>
-              <circle className={isCounting ? "text-indigo-500" : "text-zinc-500"} strokeWidth="4" strokeDasharray="301.59" strokeDashoffset={circleOffset} strokeLinecap="round" stroke="currentColor" fill="transparent" r="48" cx="50" cy="50" style={{ transition: 'stroke-dashoffset 1s linear, color 0.5s ease' }}/>
+              <circle className="text-zinc-800/70" strokeWidth="4" stroke="currentColor" fill="transparent" r="48" cx="50" cy="50" />
+              <circle className={isCounting ? "text-indigo-500" : "text-zinc-500"} strokeWidth="4" strokeDasharray="301.59" strokeDashoffset={circleOffset} strokeLinecap="round" stroke="currentColor" fill="transparent" r="48" cx="50" cy="50" style={{ transition: 'stroke-dashoffset 1s linear, color 0.5s ease' }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 space-y-4">
               <div className={`text-[4.5rem] md:text-[6rem] font-black leading-none tabular-nums tracking-tighter ${isCounting ? 'text-indigo-400 drop-shadow-[0_0_20px_rgba(129,140,248,0.2)]' : 'text-zinc-200'} transition-all duration-500`}>
@@ -456,6 +488,58 @@ export default function TimerView() {
             </div>
           </div>
 
+          {/* AUDIO CONTROLS PANEL */}
+          <div className="bg-zinc-950/40 backdrop-blur-sm border border-zinc-800/50 p-4 rounded-2xl mb-6 flex flex-col md:flex-row items-center gap-6 animate-in fade-in slide-in-from-top-2 duration-700">
+            <div className="flex items-center gap-2 text-zinc-500 font-bold text-[10px] uppercase tracking-widest px-2 border-r border-zinc-800 mr-2 h-full py-1">
+              <Settings2 size={14} className="text-indigo-400" />
+              <span>Som ambiente</span>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleNoiseToggle('white')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${activeNoise === 'white' ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+              >
+                <Wind size={16} />
+                <span className="text-xs font-bold uppercase tracking-tight">White</span>
+              </button>
+              <button
+                onClick={() => handleNoiseToggle('brown')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${activeNoise === 'brown' ? 'bg-amber-600/20 border-amber-500 text-amber-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+              >
+                <Waves size={16} />
+                <span className="text-xs font-bold uppercase tracking-tight">Brown</span>
+              </button>
+              <button
+                onClick={() => handleNoiseToggle('beta')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${activeNoise === 'beta' ? 'bg-purple-600/20 border-purple-500 text-purple-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+              >
+                <Zap size={16} />
+                <span className="text-xs font-bold uppercase tracking-tight">Beta</span>
+              </button>
+              <button 
+                onClick={() => handleNoiseToggle('rain')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${activeNoise === 'rain' ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+              >
+                <CloudRain size={16} />
+                <span className="text-xs font-bold uppercase tracking-tight">Rain</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 ml-auto pr-4 w-full md:w-auto">
+              <Volume2 size={16} className="text-zinc-500" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={noiseVolume}
+                onChange={handleVolumeChange}
+                className="w-full md:w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+            </div>
+          </div>
+
           <div className="flex flex-col gap-4 w-full mt-2 items-center">
             {timeRemaining > 0 && (
               <div className="flex gap-4 max-w-md w-full justify-center">
@@ -464,8 +548,9 @@ export default function TimerView() {
                 </Button>
 
                 {!currentStepInfo?.unskippable && (
-                  <Button variant="ghost" size="lg" className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 h-14 rounded-xl" onClick={() => {
-                    if (window.confirm("Acelerar para a conclusão desta etapa agora mesmo? O tempo será reduzido a 00:00.")) {
+                  <Button variant="ghost" size="lg" className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 h-14 rounded-xl" onClick={async () => {
+                    const confirmed = await confirm("Acelerar para a conclusão desta etapa agora mesmo? O tempo será reduzido a 00:00.");
+                    if (confirmed) {
                       clearInterval(timerRef.current); setIsCounting(false); setTimeRemaining(0);
                     }
                   }}>Zero</Button>
@@ -501,16 +586,16 @@ export default function TimerView() {
                   </div>
                 )}
                 {currentStepInfo?.requiresCheckbox && (
-                    <label className="w-full bg-indigo-900/10 p-6 rounded-2xl border border-indigo-500/20 mb-6 flex items-center gap-4 cursor-pointer hover:bg-indigo-900/20 transition-all">
-                      <input type="checkbox" className="w-6 h-6 rounded bg-zinc-900" checked={singleCheckboxCtx} onChange={e => setSingleCheckboxCtx(e.target.checked)}/>
-                      <span className="text-zinc-300 text-sm">Confirmo as anotações do órgão e ano.</span>
-                    </label>
+                  <label className="w-full bg-indigo-900/10 p-6 rounded-2xl border border-indigo-500/20 mb-6 flex items-center gap-4 cursor-pointer hover:bg-indigo-900/20 transition-all">
+                    <input type="checkbox" className="w-6 h-6 rounded bg-zinc-900" checked={singleCheckboxCtx} onChange={e => setSingleCheckboxCtx(e.target.checked)} />
+                    <span className="text-zinc-300 text-sm">Confirmo as anotações do órgão e ano.</span>
+                  </label>
                 )}
                 {currentStepInfo?.requiresMultiCheckboxes && (
                   <div className="w-full bg-zinc-950 p-6 rounded-2xl border border-zinc-800/80 mb-6 space-y-3 text-left">
                     {['banca', 'disciplina', 'anos'].map((key) => (
                       <label key={key} className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 transition-all cursor-pointer">
-                        <input type="checkbox" className="w-5 h-5 rounded" checked={multiCheckboxesCtx[key]} onChange={e => setMultiCheckboxesCtx({...multiCheckboxesCtx, [key]: e.target.checked})}/>
+                        <input type="checkbox" className="w-5 h-5 rounded" checked={multiCheckboxesCtx[key]} onChange={e => setMultiCheckboxesCtx({ ...multiCheckboxesCtx, [key]: e.target.checked })} />
                         <span className="text-zinc-300 font-medium capitalize text-sm">Filtrei {key}?</span>
                       </label>
                     ))}
