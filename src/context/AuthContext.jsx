@@ -115,6 +115,29 @@ export const AuthProvider = ({ children }) => {
     SYNC_KEYS.forEach(key => localStorage.removeItem(key));
   };
 
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. Periodic sync every 5 minutes
+    const interval = setInterval(() => {
+      triggerPull(user);
+    }, 5 * 60 * 1000);
+
+    // 2. Sync whenever tab gains focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[AuthContext] Tab focused - triggering smart sync');
+        triggerPull(user);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
+
   const value = {
     user,
     session,
