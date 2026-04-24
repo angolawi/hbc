@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const SYNC_KEYS = [
+export const SYNC_KEYS = [
   'simpl_edital', 
   'simpl_ciclo', 
   'simpl_horas_estudadas', 
@@ -14,12 +14,22 @@ const SYNC_KEYS = [
  * Pushes local data to Supabase
  * @param {string} key 
  * @param {any} data 
+ * @param {object} authenticatedUser - Optional user to avoid getUser call
  */
-export const pushData = async (key, data) => {
+export const pushData = async (key, data, authenticatedUser = null) => {
   try {
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'start' } }));
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    
+    let user = authenticatedUser;
+    if (!user) {
+      const { data: { user: fetchedUser } } = await supabase.auth.getUser();
+      user = fetchedUser;
+    }
+
+    if (!user) {
+      console.warn(`[DataSync] No user found, skipping push for ${key}`);
+      return;
+    }
 
     const { error } = await supabase
       .from('user_data')
@@ -28,12 +38,16 @@ export const pushData = async (key, data) => {
         key: key, 
         data: data,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id, key' });
+      }, { onConflict: ['user_id', 'key'] });
 
-    if (error) throw error;
+    if (error) {
+      console.error(`[DataSync] Supabase Error pushing ${key}:`, error);
+      throw error;
+    }
+    
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'success' } }));
   } catch (err) {
-    console.error(`[DataSync] Error pushing ${key}:`, err);
+    console.error(`[DataSync] Unexpected Error pushing ${key}:`, err);
     window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'error' } }));
   }
 };
@@ -78,10 +92,17 @@ export const pullAllData = async () => {
  * Helper to push multiple keys at once
  */
 export const pushAllLocalData = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
   for (const key of SYNC_KEYS) {
     const localData = localStorage.getItem(key);
     if (localData) {
-      await pushData(key, JSON.parse(localData));
+      try {
+        await pushData(key, JSON.parse(localData), user);
+      } catch (e) {
+        console.error(`[DataSync] Failed to push ${key} during pushAll:`, e);
+      }
     }
   }
 };

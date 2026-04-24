@@ -74,7 +74,7 @@ export default function ActiveCycleView({ setActiveTab }) {
               if (confirmed) {
                 localStorage.removeItem('simpl_ciclo');
                 setActiveCycle(null);
-                pushData('simpl_ciclo', null);
+                await pushData('simpl_ciclo', null);
               }
             }}>
               Apagar Ciclo Atual
@@ -134,7 +134,7 @@ export default function ActiveCycleView({ setActiveTab }) {
                     newHistory.splice(cycleIdx, 1);
                     localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
                     setInactiveCycles(newHistory);
-                    pushData('simpl_ciclo_history', newHistory);
+                    await pushData('simpl_ciclo_history', newHistory);
                   }
                 }}>
                   Excluir do Histórico

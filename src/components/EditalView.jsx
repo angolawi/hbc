@@ -38,10 +38,10 @@ export default function EditalView() {
     }
   }, []);
 
-  const saveToStorage = (data) => {
+  const saveToStorage = async (data) => {
     setDisciplines(data);
     localStorage.setItem('simpl_edital', JSON.stringify(data));
-    pushData('simpl_edital', data);
+    await pushData('simpl_edital', data);
   };
 
   const addDiscipline = () => {

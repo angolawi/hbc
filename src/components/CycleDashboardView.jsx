@@ -17,39 +17,42 @@ export default function CycleDashboardView() {
 
     useEffect(() => {
         // Migration logic for old data if no instances exist
-        if (instances.length === 0) {
-            const cicloData = localStorage.getItem('simpl_ciclo');
-            let uniqueDiscs = [];
-            if (cicloData) {
-                const parsed = JSON.parse(cicloData);
-                uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
-            }
-
-            const savedProgressStr = localStorage.getItem('simpl_grid_progress');
-            let hasOldProgress = false;
-            if (savedProgressStr) {
-                const p = JSON.parse(savedProgressStr);
-                if (Object.keys(p).length > 0) hasOldProgress = true;
-            }
-
-            if (uniqueDiscs.length > 0 || hasOldProgress) {
-                if (uniqueDiscs.length > 0 && !uniqueDiscs.includes("Revisão Noturna")) {
-                    uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+        const migrate = async () => {
+            if (instances.length === 0) {
+                const cicloData = localStorage.getItem('simpl_ciclo');
+                let uniqueDiscs = [];
+                if (cicloData) {
+                    const parsed = JSON.parse(cicloData);
+                    uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
                 }
 
-                const newInst = {
-                    id: Date.now().toString(),
-                    startDate: new Date().toISOString(),
-                    disciplines: uniqueDiscs
-                };
-                setInstances([newInst]);
-                localStorage.setItem('simpl_cycle_instances', JSON.stringify([newInst]));
-                pushAllLocalData(); // Sync the newly created instance and any old progress
+                const savedProgressStr = localStorage.getItem('simpl_grid_progress');
+                let hasOldProgress = false;
+                if (savedProgressStr) {
+                    const p = JSON.parse(savedProgressStr);
+                    if (Object.keys(p).length > 0) hasOldProgress = true;
+                }
+
+                if (uniqueDiscs.length > 0 || hasOldProgress) {
+                    if (uniqueDiscs.length > 0 && !uniqueDiscs.includes("Revisão Noturna")) {
+                        uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+                    }
+
+                    const newInst = {
+                        id: Date.now().toString(),
+                        startDate: new Date().toISOString(),
+                        disciplines: uniqueDiscs
+                    };
+                    setInstances([newInst]);
+                    localStorage.setItem('simpl_cycle_instances', JSON.stringify([newInst]));
+                    await pushAllLocalData(); // Sync the newly created instance and any old progress
+                }
             }
-        }
+        };
+        migrate();
     }, []);
 
-    const handleCreateInstance = () => {
+    const handleCreateInstance = async () => {
         const cicloData = localStorage.getItem('simpl_ciclo');
         let uniqueDiscs = [];
         if (cicloData) {
@@ -73,7 +76,7 @@ export default function CycleDashboardView() {
         const updated = [newInst, ...instances]; // Newest first
         setInstances(updated);
         localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
-        pushData('simpl_cycle_instances', updated);
+        await pushData('simpl_cycle_instances', updated);
     };
 
     const handleRemoveInstance = async (id) => {
@@ -82,11 +85,11 @@ export default function CycleDashboardView() {
             const updated = instances.filter(i => i.id !== id);
             setInstances(updated);
             localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
-            pushData('simpl_cycle_instances', updated);
+            await pushData('simpl_cycle_instances', updated);
         }
     };
 
-    const handleCellClick = (discName, dateStr) => {
+    const handleCellClick = async (discName, dateStr) => {
         const key = `${discName}_${dateStr}`;
         const currentStatus = progress[key] || 0;
 
@@ -108,7 +111,7 @@ export default function CycleDashboardView() {
 
         setProgress(newProgress);
         localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
-        pushData('simpl_grid_progress', newProgress);
+        await pushData('simpl_grid_progress', newProgress);
     };
 
     const getCellAppearance = (status, isWeekend) => {
