@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabase';
 import { pullAllData, SYNC_KEYS } from '../utils/dataSync';
 
@@ -8,6 +8,51 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const realtimeChannelRef = useRef(null);
+  const pullInProgressRef = useRef(false);
+
+  const setupRealtimeChannel = (currentUser) => {
+    // Teardown any existing channel before creating a new one
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
+    }
+
+    if (!currentUser) return;
+
+    const channel = supabase
+      .channel(`db-changes-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_data',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          if (payload.new && payload.new.key) {
+            localStorage.setItem(payload.new.key, JSON.stringify(payload.new.data));
+            window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[AuthContext] Realtime channel status:', status);
+      });
+
+    realtimeChannelRef.current = channel;
+  };
+
+  const triggerPull = async (currentUser) => {
+    if (pullInProgressRef.current) return;
+    pullInProgressRef.current = true;
+    try {
+      await pullAllData(currentUser);
+    } finally {
+      pullInProgressRef.current = false;
+    }
+  };
 
   useEffect(() => {
     // 5-second safety timeout to ensure app always unblocks
@@ -22,7 +67,8 @@ export const AuthProvider = ({ children }) => {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
         if (currentUser) {
-           pullAllData(); // Trigger initial sync
+          setupRealtimeChannel(currentUser);
+          triggerPull(currentUser);
         }
         clearTimeout(safetyTimer);
         setLoading(false);
@@ -33,53 +79,32 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       });
 
-    // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        setSession(session);
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        
-        if (currentUser) {
-          // Sync data specifically on login
-          await pullAllData();
+    // Listen for auth state changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[AuthContext] Auth event:', event);
+      setSession(session);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
 
-          // Real-time Auto-Sync Subscription
-          const channel = supabase
-            .channel('db-changes')
-            .on(
-              'postgres_changes',
-              {
-                event: '*',
-                schema: 'public',
-                table: 'user_data',
-                filter: `user_id=eq.${currentUser.id}`,
-              },
-              (payload) => {
-                if (payload.new && payload.new.key) {
-                  localStorage.setItem(payload.new.key, JSON.stringify(payload.new.data));
-                  // Signal status for the UI indicator
-                  window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
-                }
-              }
-            )
-            .subscribe();
+      if (event === 'SIGNED_IN' && currentUser) {
+        setupRealtimeChannel(currentUser);
+        triggerPull(currentUser);
+      }
 
-          return () => {
-             supabase.removeChannel(channel);
-          }
+      if (event === 'SIGNED_OUT') {
+        if (realtimeChannelRef.current) {
+          supabase.removeChannel(realtimeChannelRef.current);
+          realtimeChannelRef.current = null;
         }
-      } catch (e) {
-        console.error("[AuthContext] Error during auth state change:", e);
-      } finally {
-        clearTimeout(safetyTimer);
-        setLoading(false);
       }
     });
 
     return () => {
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+      }
     };
   }, []);
 
@@ -87,7 +112,6 @@ export const AuthProvider = ({ children }) => {
   const login = (email, password) => supabase.auth.signInWithPassword({ email, password });
   const logout = async () => {
     await supabase.auth.signOut();
-    // Clear study data from localStorage to prevent leakage
     SYNC_KEYS.forEach(key => localStorage.removeItem(key));
   };
 
