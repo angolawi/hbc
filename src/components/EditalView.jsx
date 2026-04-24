@@ -23,7 +23,8 @@ export default function EditalView() {
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
   const [newDiscTag, setNewDiscTag] = useState('teorica');
   const [smartText, setSmartText] = useState('');
-  
+  const [activeCycleDiscs, setActiveCycleDiscs] = useState([]); // IDs das matérias no ciclo
+
   // Template States
   const [showTemplates, setShowTemplates] = useState(false);
   const [templates, setTemplates] = useState([]);
@@ -35,8 +36,16 @@ export default function EditalView() {
       if (selectedMentee) {
         setLoading(true);
         const data = await pullAllData(user, selectedMentee.id);
-        const saved = data?.find(i => i.key === 'simpl_edital')?.data;
-        if (saved) setDisciplines(saved);
+
+        const savedEdital = data?.find(i => i.key === 'simpl_edital')?.data;
+        if (savedEdital) setDisciplines(savedEdital);
+
+        const savedCiclo = data?.find(i => i.key === 'simpl_ciclo')?.data;
+        if (savedCiclo) {
+          const blocks = Array.isArray(savedCiclo) ? savedCiclo : (savedCiclo.blocks || []);
+          setActiveCycleDiscs([...new Set(blocks.map(b => b.id))]);
+        }
+
         setLoading(false);
       } else {
         const savedData = localStorage.getItem('simpl_edital');
@@ -47,6 +56,13 @@ export default function EditalView() {
           } catch (e) {
             console.error("Error parsing local edital:", e);
           }
+        }
+
+        const savedCicloLocal = localStorage.getItem('simpl_ciclo');
+        if (savedCicloLocal) {
+          const parsed = JSON.parse(savedCicloLocal);
+          const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
+          setActiveCycleDiscs([...new Set(blocks.map(b => b.id))]);
         }
       }
     };
@@ -64,72 +80,88 @@ export default function EditalView() {
     if (disciplines.length === 0) return alert("Adicione pelo menos uma disciplina antes.");
 
     if (editingTemplateId) {
-        const { error } = await supabase.from('edital_templates').update({
-            name: templateName,
-            data: disciplines
-        }).eq('id', editingTemplateId);
+      const { error } = await supabase.from('edital_templates').update({
+        name: templateName,
+        data: disciplines
+      }).eq('id', editingTemplateId);
 
-        if (error) alert("Erro ao atualizar template.");
-        else {
-            alert("Template atualizado com sucesso!", "success");
-            setEditingTemplateId(null);
-            setTemplateName('');
-            setDisciplines([]); // Limpa a tela
-            localStorage.removeItem('simpl_edital');
-            fetchTemplates();
-        }
+      if (error) alert("Erro ao atualizar template.");
+      else {
+        alert("Template atualizado com sucesso!", "success");
+        setEditingTemplateId(null);
+        setTemplateName('');
+        setDisciplines([]); // Limpa a tela
+        localStorage.removeItem('simpl_edital');
+        fetchTemplates();
+      }
     } else {
-        const { error } = await supabase.from('edital_templates').insert({
-            mentor_id: user.id,
-            name: templateName,
-            data: disciplines
-        });
+      const { error } = await supabase.from('edital_templates').insert({
+        mentor_id: user.id,
+        name: templateName,
+        data: disciplines
+      });
 
-        if (error) alert("Erro ao salvar template.");
-        else {
-            alert("Template de Edital salvo com sucesso!", "success");
-            setTemplateName('');
-            setDisciplines([]); // Limpa a tela
-            localStorage.removeItem('simpl_edital');
-            fetchTemplates();
-        }
+      if (error) alert("Erro ao salvar template.");
+      else {
+        alert("Template de Edital salvo com sucesso!", "success");
+        setTemplateName('');
+        setDisciplines([]); // Limpa a tela
+        localStorage.removeItem('simpl_edital');
+        fetchTemplates();
+      }
     }
   };
 
   const loadTemplate = (template) => {
+    if (!template.data || !Array.isArray(template.data)) {
+      return alert("Erro: Dados do template inválidos.", "error");
+    }
+
     setDisciplines(template.data);
     setTemplateName(template.name);
     setEditingTemplateId(template.id);
-    alert(`Template "${template.name}" carregado para edição.`, "success");
+
+    // Força sincronização com storage para evitar perda em refresh
+    localStorage.setItem('simpl_edital', JSON.stringify(template.data));
+
+    const totalTopicos = template.data.reduce((acc, d) => acc + (d.topicos?.length || 0), 0);
+    alert(`Template "${template.name}" carregado (${template.data.length} disciplinas, ${totalTopicos} tópicos).`, "success");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const applyTemplate = async (templateData) => {
-    const confirmed = await confirm("Isso substituirá todo o edital atual deste aluno pelo template. Continuar?");
+    if (!templateData || !Array.isArray(templateData)) {
+      return alert("Este template parece estar vazio ou corrompido.", "error");
+    }
+
+    const confirmed = await confirm(`Isso substituirá todo o edital atual deste aluno por este template (${templateData.length} disciplinas). Continuar?`);
     if (confirmed) {
-        saveToStorage(templateData);
-        alert("Template aplicado com sucesso!", "success");
-        setShowTemplates(false);
+      // Usa a função de storage para garantir que vá para o Supabase do aluno
+      await saveToStorage(templateData);
+      alert("Template aplicado e sincronizado com sucesso!", "success");
+      setShowTemplates(false);
     }
   };
 
   const deleteTemplate = async (tid) => {
     if (await confirm("Excluir este template para sempre?")) {
-        await supabase.from('edital_templates').delete().eq('id', tid);
-        if (editingTemplateId === tid) {
-            setEditingTemplateId(null);
-            setTemplateName('');
-        }
-        fetchTemplates();
+      await supabase.from('edital_templates').delete().eq('id', tid);
+      if (editingTemplateId === tid) {
+        setEditingTemplateId(null);
+        setTemplateName('');
+      }
+      fetchTemplates();
     }
   }
 
   const saveToStorage = async (data) => {
     setDisciplines(data);
-    if (selectedMentee) {
-      await pushData('simpl_edital', data, user, selectedMentee.id);
-    } else {
-      localStorage.setItem('simpl_edital', JSON.stringify(data));
-      await pushData('simpl_edital', data);
+    localStorage.setItem('simpl_edital', JSON.stringify(data));
+
+    // Se estiver editando um template global, NÃO salva no edital ativo/aluno 
+    // para evitar misturar rascunhos de template com o estudo real.
+    if (user && !editingTemplateId) {
+      await pushData('simpl_edital', data, user, selectedMentee?.id);
     }
   };
 
@@ -172,7 +204,7 @@ export default function EditalView() {
       texto,
       ...blankMetrics()
     }));
-    
+
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, topicos: [...d.topicos, ...novosTopicos] };
@@ -279,7 +311,7 @@ export default function EditalView() {
 
     let text = smartText.replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim();
     // Separation of disciplines and topics if inline (ex: "DISCIPLINA: 1. Tema" -> "DISCIPLINA:\n1. Tema")
-    text = text.replace(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇ\s,\-\(\)/&]{4,}:?)(?=\s*(\d|[A-Z][a-z]))/gm, '$1\n'); 
+    text = text.replace(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇ\s,\-\(\)/&]{4,}:?)(?=\s*(\d|[A-Z][a-z]))/gm, '$1\n');
 
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const extractedDisciplines = [];
@@ -287,18 +319,27 @@ export default function EditalView() {
     let currentContent = [];
 
     const isDisciplineHeader = (str) => {
-      // Must start with uppercase letter, contain NO lowercase letters, and length reasonably short
-      return /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(str) && /^[^a-z]+$/.test(str) && str.length < 120;
+      // Remove números iniciais para verificar o texto (ex: "01. DIREITO" -> "DIREITO")
+      const plainText = str.replace(/^[\d\.\-\s]+/, '').trim();
+      if (!plainText) return false;
+
+      const hasUppercaseStart = /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(plainText);
+      const words = plainText.split(/\s+/);
+
+      // Permite conectores minúsculos, mas exige que o resto seja maiúsculo
+      const isMostlyUppercase = words.filter(w => /^[^a-z]+$/.test(w) || /^(de|da|do|dos|das|e|o|a)$/i.test(w)).length / words.length > 0.6;
+
+      return hasUppercaseStart && isMostlyUppercase && plainText.length < 120 && plainText.length > 2;
     };
 
     const processTopics = (contentBlock) => {
       if (!contentBlock) return [];
-      
+
       let matches = [];
       let match;
       // Regex detects numbers like "1 ", "1.1", "1.1.1" usually followed by space or hyphens
       const matchRegex = /\b(\d+(?:\.\d+)*)[\.\s\-–]+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g;
-      
+
       while ((match = matchRegex.exec(contentBlock)) !== null) {
         matches.push({
           prefix: match[1],
@@ -323,13 +364,13 @@ export default function EditalView() {
         const next = matches[i + 1];
         const startTextIdx = current.endIndex;
         const endTextIdx = next ? next.index : contentBlock.length;
-        
+
         let texto = contentBlock.slice(startTextIdx, endTextIdx).trim();
         // Clean leading punctuation
         texto = texto.replace(/^[-–;\.,]*\s*/, '');
-        
+
         const level = current.prefix.split('.').length - 1; // e.g. "1.1" -> 1 padding unit
-        
+
         topics.push({
           id: Date.now().toString() + '-' + i + Math.random().toString(),
           texto: `${current.prefix} - ${texto}`,
@@ -341,47 +382,47 @@ export default function EditalView() {
     };
 
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (isDisciplineHeader(line)) {
-            if (currentDiscipline && currentContent.length > 0) {
-                currentDiscipline.topicos = processTopics(currentContent.join(' '));
-                extractedDisciplines.push(currentDiscipline);
-            } else if (currentDiscipline && currentContent.length === 0) {
-                extractedDisciplines.push(currentDiscipline);
-            }
-
-            currentDiscipline = {
-                id: Date.now().toString() + '-' + i,
-                nome: line.replace(/:$/, '').trim(),
-                categoria: 'Conhecimentos Específicos',
-                tag: 'teorica',
-                currentPhase: 1,
-                topicos: []
-            };
-            currentContent = [];
-        } else {
-            if (currentDiscipline) {
-                currentContent.push(line);
-            } else {
-                currentDiscipline = {
-                    id: Date.now().toString() + '-def',
-                    nome: 'CONHECIMENTOS DIVERSOS',
-                    categoria: 'Conhecimentos Gerais',
-                    currentPhase: 1,
-                    topicos: []
-                };
-                currentContent.push(line);
-            }
+      const line = lines[i];
+      if (isDisciplineHeader(line)) {
+        if (currentDiscipline && currentContent.length > 0) {
+          currentDiscipline.topicos = processTopics(currentContent.join(' '));
+          extractedDisciplines.push(currentDiscipline);
+        } else if (currentDiscipline && currentContent.length === 0) {
+          extractedDisciplines.push(currentDiscipline);
         }
+
+        currentDiscipline = {
+          id: Date.now().toString() + '-' + i,
+          nome: line.replace(/:$/, '').trim(),
+          categoria: 'Conhecimentos Específicos',
+          tag: 'teorica',
+          currentPhase: 1,
+          topicos: []
+        };
+        currentContent = [];
+      } else {
+        if (currentDiscipline) {
+          currentContent.push(line);
+        } else {
+          currentDiscipline = {
+            id: Date.now().toString() + '-def',
+            nome: 'CONHECIMENTOS DIVERSOS',
+            categoria: 'Conhecimentos Gerais',
+            currentPhase: 1,
+            topicos: []
+          };
+          currentContent.push(line);
+        }
+      }
     }
 
     if (currentDiscipline) {
-      if(currentContent.length > 0) {
+      if (currentContent.length > 0) {
         currentDiscipline.topicos = processTopics(currentContent.join(' '));
       }
       extractedDisciplines.push(currentDiscipline);
     }
-    
+
     saveToStorage([...disciplines, ...extractedDisciplines]);
     setSmartText('');
     alert(`Extração Concluída com sucesso! ${extractedDisciplines.length} disciplinas identificadas.`, 'success');
@@ -403,76 +444,78 @@ export default function EditalView() {
       {/* Mentor Toolbox - Templates (Assign only at top) */}
       {isMentor && selectedMentee && (
         <Card className="mb-8 p-6 bg-zinc-900 border-indigo-500/30 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5">
-                <BrainCircuit size={100} className="text-white" />
+          <div className="absolute top-0 right-0 p-8 opacity-5">
+            <BrainCircuit size={100} className="text-white" />
+          </div>
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-400 mb-2 flex items-center gap-2">
+                <ShieldCheck size={16} className="text-indigo-400" />
+                Ferramentas de Mentor
+              </h3>
+              <p className="text-xs text-zinc-600">Atribua um edital pré-configurado para este aluno.</p>
             </div>
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-400 mb-2 flex items-center gap-2">
-                      <ShieldCheck size={16} className="text-indigo-400" />
-                      Ferramentas de Mentor
-                  </h3>
-                  <p className="text-xs text-zinc-600">Atribua um edital pré-configurado para este aluno.</p>
-                </div>
 
-                <div className="w-full md:w-auto flex flex-col gap-2 min-w-[300px]">
-                        <Button 
-                            onClick={() => setShowTemplates(!showTemplates)}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 flex items-center justify-center gap-2"
-                        >
-                            <FileText size={18} />
-                            {showTemplates ? 'Fechar Lista' : 'Ver Meus Templates'}
-                        </Button>
-                        
-                        {showTemplates && templates.length > 0 && (
-                            <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar mt-2">
-                                {templates.map(t => (
-                                    <div key={t.id} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800 group">
-                                        <span className="text-xs font-bold text-zinc-300">{t.name}</span>
-                                        <Button 
-                                            onClick={() => applyTemplate(t.data)}
-                                            size="sm" 
-                                            className="h-7 text-[9px] px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black"
-                                        >
-                                            ATRIBUIR
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {showTemplates && templates.length === 0 && <p className="text-center text-zinc-600 text-[10px] italic">Sem templates.</p>}
+            <div className="w-full md:w-auto flex flex-col gap-2 min-w-[300px]">
+              <Button
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 flex items-center justify-center gap-2"
+              >
+                <FileText size={18} />
+                {showTemplates ? 'Fechar Lista' : 'Ver Meus Templates'}
+              </Button>
+
+              {showTemplates && templates.length > 0 && (
+                <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar mt-2">
+                  {templates.map(t => (
+                    <div key={t.id} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800 group">
+                      <span className="text-xs font-bold text-zinc-300">{t.name}</span>
+                      <Button
+                        onClick={() => applyTemplate(t.data)}
+                        size="sm"
+                        className="h-7 text-[9px] px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black"
+                      >
+                        ATRIBUIR
+                      </Button>
+                    </div>
+                  ))}
                 </div>
+              )}
+              {showTemplates && templates.length === 0 && <p className="text-center text-zinc-600 text-[10px] italic">Sem templates.</p>}
             </div>
+          </div>
         </Card>
       )}
 
-      {/* Smart Extract Edital Completo */}
-      <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-xl rounded-2xl mb-8 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
-        <div className="relative">
+      {/* Smart Extract Edital Completo - SOMENTE PARA MENTORES */}
+      {isMentor && (
+        <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-xl rounded-2xl mb-8 relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
+          <div className="relative">
             <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2 mb-2">
-            <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
+              <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
             </h2>
             <p className="text-sm text-zinc-400 mb-6 max-w-4xl">
-            Cole integralmente o texto do bloco de "Conteúdo Programático" do seu edital. O sistema identificará automaticamente as disciplinas (escritas em <strong>CAIXA ALTA</strong>) e segmentará a hierarquia das sub-matérias baseado em prefixos numéricos (Ex: 1, 1.1, 1.2.1).
+              Cole integralmente o texto do bloco de "Conteúdo Programático" do seu edital. O sistema identificará automaticamente as disciplinas (escritas em <strong>CAIXA ALTA</strong>) e segmentará a hierarquia das sub-matérias baseado em prefixos numéricos (Ex: 1, 1.1, 1.2.1).
             </p>
-            
+
             <div className="flex flex-col xl:flex-row gap-4 items-end">
-                <Textarea 
+              <Textarea
                 placeholder={`Exemplo de Extração:\nLÍNGUA PORTUGUESA: 1 Compreensão e interpretação de textos. 1.1 Gêneros textuais.\nRACIOCÍNIO LÓGICO\n1 Conjuntos...`}
                 className="min-h-[140px] text-sm bg-zinc-950/80 w-full"
                 value={smartText}
                 onChange={(e) => setSmartText(e.target.value)}
-                />
-                <Button 
-                onClick={processSmartExtract} 
+              />
+              <Button
+                onClick={processSmartExtract}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 w-full xl:w-64 h-12 shrink-0 font-bold tracking-wide"
-                >
+              >
                 Processar Edital
-                </Button>
+              </Button>
             </div>
-        </div>
-      </Card>
+          </div>
+        </Card>
+      )}
 
       <div className="animate-in slide-in-from-top-4 fade-in duration-300">
         {/* Lista de Disciplinas */}
@@ -484,75 +527,118 @@ export default function EditalView() {
               <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima para cadastrar o edital automaticamente.</p>
             </div>
           ) : (
-            <>
-              {disciplines.map(disc => (
-                <DisciplineBlock 
-                  key={disc.id} 
-                  discipline={disc}
-                  selectedMentee={selectedMentee}
-                  onRemove={() => removeDiscipline(disc.id)}
-                  onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
-                  onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
-                  onChangeTag={(tag) => updateDisciplineTag(disc.id, tag)}
-                  onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
-                  onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
-                  onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
-                  onEditTopicoText={(topicoId, newText) => editTopicoText(disc.id, topicoId, newText)}
-                  onEditName={(newName) => editDisciplineName(disc.id, newName)}
-                />
-              ))}
-
-              {/* SAVE TEMPLATE BUTTON AT THE END */}
-              {isMentor && !selectedMentee && (
-                <Card className={`p-8 bg-gradient-to-br border-indigo-500/30 rounded-2xl mt-12 shadow-2xl ${editingTemplateId ? 'from-amber-500/10 to-zinc-900 border-amber-500/50' : 'from-indigo-500/10 to-zinc-900'}`}>
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                        <ShieldCheck className={editingTemplateId ? 'text-amber-400' : 'text-indigo-400'} />
-                        {editingTemplateId ? 'Editando Template' : 'Finalizar e Salvar como Template'}
-                    </h3>
-                    <p className="text-sm text-zinc-400 mb-6">
-                      {editingTemplateId ? `Você está editando o template "${templateName}". As alterações substituirão o arquivo original.` : 'Salve esta configuração completa para poder atribuí-la rapidamente aos seus alunos depois.'}
-                    </p>
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <Input 
-                            placeholder="Nome do Concurso (Ex: Auditor SEFAZ 2024)" 
-                            value={templateName}
-                            onChange={e => setTemplateName(e.target.value)}
-                            className="bg-zinc-950 flex-1 h-14"
+            <div className="space-y-12">
+              {/* Disciplinas no Ciclo Ativo */}
+              {disciplines.some(d => activeCycleDiscs.includes(d.id)) && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3 ml-2 drop-shadow-sm">
+                    <BrainCircuit className="text-indigo-500" size={24} />
+                    No ciclo atual ({disciplines.filter(d => activeCycleDiscs.includes(d.id)).length})
+                  </h2>
+                  <div className="grid grid-cols-1 gap-4">
+                    {disciplines
+                      .filter(d => activeCycleDiscs.includes(d.id))
+                      .map(disc => (
+                        <DisciplineBlock
+                          key={disc.id}
+                          discipline={disc}
+                          isMentor={isMentor}
+                          selectedMentee={selectedMentee}
+                          onRemove={() => removeDiscipline(disc.id)}
+                          onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
+                          onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
+                          onChangeTag={(tag) => updateDisciplineTag(disc.id, tag)}
+                          onAddBulk={(txt) => addTopicosEmMassa(disc.id, txt)}
+                          onRemoveTopico={(tid) => removeTopico(disc.id, tid)}
+                          onUpdateTopicMetrics={(tid, ph, f, v) => updateTopicMetrics(disc.id, tid, ph, f, v)}
+                          onEditTopicoText={(tid, txt) => editTopicoText(disc.id, tid, txt)}
+                          onEditName={(newName) => editDisciplineName(disc.id, newName)}
                         />
-                        <Button onClick={saveTemplate} className={`${editingTemplateId ? 'bg-amber-500 hover:bg-amber-400' : 'bg-white hover:bg-zinc-200'} text-zinc-950 px-10 h-14 font-black uppercase tracking-widest`}>
-                            {editingTemplateId ? 'Salvar Alterações' : 'Salvar Novo Template'}
-                        </Button>
-                        {editingTemplateId && (
-                           <Button onClick={() => { setEditingTemplateId(null); setTemplateName(''); }} variant="outline" className="h-14 px-6 text-zinc-500 border-zinc-800">
-                              CANCELAR EDIÇÃO
-                           </Button>
-                        )}
-                    </div>
-                </Card>
-              )}
-
-              {/* Template List (Management View) */}
-              {isMentor && !selectedMentee && templates.length > 0 && (
-                <div className="mt-12">
-                   <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4 px-2">Meus Templates Salvos</h4>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {templates.map(t => (
-                        <div key={t.id} className={`p-4 bg-zinc-900 border rounded-xl flex justify-between items-center group ${editingTemplateId === t.id ? 'border-amber-500/50 bg-amber-500/5' : 'border-zinc-800'}`}>
-                           <span className="font-bold text-zinc-300 text-sm">{t.name}</span>
-                           <div className="flex gap-2">
-                             <Button onClick={() => loadTemplate(t)} variant="ghost" size="sm" className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:bg-indigo-400/10">
-                                CARREGAR / EDITAR
-                             </Button>
-                             <button onClick={() => deleteTemplate(t.id)} className="text-zinc-700 hover:text-rose-500 p-2 opacity-0 group-hover:opacity-100 transition-all">
-                                <Trash size={16} />
-                             </button>
-                           </div>
-                        </div>
                       ))}
-                   </div>
+                  </div>
                 </div>
               )}
-            </>
+
+              {/* Demais Disciplinas */}
+              <div className="space-y-6">
+                <h2 className="text-xl font-black text-zinc-600 uppercase tracking-widest flex items-center gap-3 ml-2 italic">
+                  <GraduationCap className="text-zinc-700" size={24} />
+                  Fomentando o Edital ({disciplines.filter(d => !activeCycleDiscs.includes(d.id)).length})
+                </h2>
+                <div className="grid grid-cols-1 gap-4">
+                  {disciplines
+                    .filter(d => !activeCycleDiscs.includes(d.id))
+                    .map(disc => (
+                      <DisciplineBlock
+                        key={disc.id}
+                        discipline={disc}
+                        isMentor={isMentor}
+                        selectedMentee={selectedMentee}
+                        onRemove={() => removeDiscipline(disc.id)}
+                        onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
+                        onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
+                        onChangeTag={(tag) => updateDisciplineTag(disc.id, tag)}
+                        onAddBulk={(txt) => addTopicosEmMassa(disc.id, txt)}
+                        onRemoveTopico={(tid) => removeTopico(disc.id, tid)}
+                        onUpdateTopicMetrics={(tid, ph, f, v) => updateTopicMetrics(disc.id, tid, ph, f, v)}
+                        onEditTopicoText={(tid, txt) => editTopicoText(disc.id, tid, txt)}
+                        onEditName={(newName) => editDisciplineName(disc.id, newName)}
+                      />
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SAVE TEMPLATE BUTTON AT THE END */}
+          {isMentor && !selectedMentee && (
+            <Card className={`p-8 bg-gradient-to-br border-indigo-500/30 rounded-2xl mt-12 shadow-2xl ${editingTemplateId ? 'from-amber-500/10 to-zinc-900 border-amber-500/50' : 'from-indigo-500/10 to-zinc-900'}`}>
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <ShieldCheck className={editingTemplateId ? 'text-amber-400' : 'text-indigo-400'} />
+                {editingTemplateId ? 'Editando Template' : 'Finalizar e Salvar como Template'}
+              </h3>
+              <p className="text-sm text-zinc-400 mb-6">
+                {editingTemplateId ? `Você está editando o template "${templateName}". As alterações substituirão o arquivo original.` : 'Salve esta configuração completa para poder atribuí-la rapidamente aos seus alunos depois.'}
+              </p>
+              <div className="flex flex-col md:flex-row gap-4">
+                <Input
+                  placeholder="Nome do Concurso (Ex: Auditor SEFAZ 2024)"
+                  value={templateName}
+                  onChange={e => setTemplateName(e.target.value)}
+                  className="bg-zinc-950 flex-1 h-14"
+                />
+                <Button onClick={saveTemplate} className={`${editingTemplateId ? 'bg-amber-500 hover:bg-amber-400' : 'bg-white hover:bg-zinc-200'} text-zinc-950 px-10 h-14 font-black uppercase tracking-widest`}>
+                  {editingTemplateId ? 'Salvar Alterações' : 'Salvar Novo Template'}
+                </Button>
+                {editingTemplateId && (
+                  <Button onClick={() => { setEditingTemplateId(null); setTemplateName(''); }} variant="outline" className="h-14 px-6 text-zinc-500 border-zinc-800">
+                    CANCELAR EDIÇÃO
+                  </Button>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Template List (Management View) */}
+          {isMentor && !selectedMentee && templates.length > 0 && (
+            <div className="mt-12">
+              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4 px-2">Meus Templates Salvos</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {templates.map(t => (
+                  <div key={t.id} className={`p-4 bg-zinc-900 border rounded-xl flex justify-between items-center group ${editingTemplateId === t.id ? 'border-amber-500/50 bg-amber-500/5' : 'border-zinc-800'}`}>
+                    <span className="font-bold text-zinc-300 text-sm">{t.name}</span>
+                    <div className="flex gap-2">
+                      <Button onClick={() => loadTemplate(t)} variant="ghost" size="sm" className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:bg-indigo-400/10">
+                        CARREGAR / EDITAR
+                      </Button>
+                      <button onClick={() => deleteTemplate(t.id)} className="text-zinc-700 hover:text-rose-500 p-2 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -560,7 +646,7 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
+function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
   const [bulkText, setBulkText] = useState('');
   const [isListCollapsed, setIsListCollapsed] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -575,7 +661,7 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
       setEditName(discipline.nome);
     }
   };
-  
+
   const handleExtrair = () => {
     if (!bulkText.trim()) return;
     onAddBulk(bulkText);
@@ -586,7 +672,7 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
   const phase = discipline.currentPhase || 1;
   const isPhase2 = phase === 2;
   const isPhase3 = phase === 3;
-  
+
   const cardBorderClass = isPhase3 ? "border-rose-500/50 shadow-rose-900/20" : isPhase2 ? "border-amber-500/50 shadow-amber-900/20" : "border-zinc-800 shadow-xl";
   const headerBgClass = isPhase3 ? "bg-rose-950/20" : isPhase2 ? "bg-amber-950/20" : "bg-zinc-900";
   const selectPhaseClass = isPhase3 ? "border-rose-800 text-rose-400 bg-rose-950/40" : isPhase2 ? "border-amber-800 text-amber-400 bg-amber-950/40" : "bg-zinc-800 border-zinc-700 text-zinc-400";
@@ -595,7 +681,7 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
     <Card className={`bg-zinc-900 overflow-hidden rounded-2xl border ${cardBorderClass} transition-all duration-500`}>
       <div className={`p-6 border-b border-zinc-800/50 ${headerBgClass} transition-colors duration-500`}>
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-          
+
           {/* Title row — clicking it toggles expand */}
           <div className="w-full flex-1">
             <div
@@ -618,7 +704,7 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
                   discipline.nome
                 )}
               </h3>
-              {!isEditingName && (
+              {isMentor && !isEditingName && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -630,38 +716,53 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
               )}
             </div>
 
-            {/* Controls row — clicks are isolated from the toggle */}
             <div className="flex flex-wrap items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
-              <select
-                value={discipline.categoria}
-                onChange={(e) => onChangeCategory(e.target.value)}
-                className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700"
-              >
-                <option value="Conhecimentos Gerais">Conhecimentos Gerais</option>
-                <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
-              </select>
+              {isMentor ? (
+                <>
+                  <select
+                    value={discipline.categoria}
+                    onChange={(e) => onChangeCategory(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700 font-black"
+                  >
+                    <option value="Conhecimentos Gerais">Conhecimentos Gerais</option>
+                    <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
+                  </select>
 
-              <select
-                value={phase}
-                onChange={(e) => onChangePhase(e.target.value)}
-                className={`tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${selectPhaseClass}`}
-              >
-                <option value="1">Fase 1</option>
-                <option value="2">Fase 2</option>
-                <option value="3">Fase 3</option>
-              </select>
+                  <select
+                    value={phase}
+                    onChange={(e) => onChangePhase(e.target.value)}
+                    className={`tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer font-black ${selectPhaseClass}`}
+                  >
+                    <option value="1">Fase 1</option>
+                    <option value="2">Fase 2</option>
+                    <option value="3">Fase 3</option>
+                  </select>
 
-              <select
-                value={discipline.tag || 'teorica'}
-                onChange={(e) => onChangeTag(e.target.value)}
-                className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700"
-              >
-                <option value="teorica">🟢 Teórica</option>
-                <option value="calculo">🔴 Exatas</option>
-                <option value="analitica">🟡 Analítica</option>
-              </select>
+                  <select
+                    value={discipline.tag || 'teorica'}
+                    onChange={(e) => onChangeTag(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700 font-black"
+                  >
+                    <option value="teorica">🟢 Teórica</option>
+                    <option value="calculo">🔴 Exatas</option>
+                    <option value="analitica">🟡 Analítica</option>
+                  </select>
+                </>
+              ) : (
+                <>
+                  <span className="bg-zinc-800 text-zinc-500 tracking-wider text-[10px] uppercase rounded px-2 py-0.5 font-bold border border-zinc-700/50">
+                    {discipline.categoria === 'Conhecimentos Gerais' ? 'Básica' : 'Específica'}
+                  </span>
+                  <span className={`tracking-wider text-[10px] uppercase rounded px-2 py-0.5 border font-bold ${selectPhaseClass}`}>
+                    Fase {phase}
+                  </span>
+                  <span className="bg-zinc-800 text-zinc-500 tracking-wider text-[10px] uppercase rounded px-2 py-0.5 font-bold border border-zinc-700/50 flex items-center gap-1">
+                    {discipline.tag === 'teorica' ? '🟢 Teórica' : discipline.tag === 'calculo' ? '🔴 Exatas' : '🟡 Analítica'}
+                  </span>
+                </>
+              )}
 
-              <span className="font-black text-zinc-600 text-[10px] uppercase tracking-widest">{discipline.topicos.length} tópicos</span>
+              <span className="ml-2 font-black text-zinc-600 text-[10px] uppercase tracking-widest">{discipline.topicos.length} tópicos</span>
             </div>
           </div>
 
@@ -670,39 +771,43 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
             <Button variant="ghost" size="sm" onClick={() => setIsListCollapsed(!isListCollapsed)} className="text-zinc-400 hover:text-zinc-100 p-2">
               {isListCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
             </Button>
-            <Button variant="ghost" size="sm" onClick={onRemove} className="text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 p-2">
-              <Trash size={18} />
-            </Button>
+            {isMentor && (
+              <Button variant="ghost" size="sm" onClick={onRemove} className="text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 p-2">
+                <Trash size={18} />
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
       {!isListCollapsed && (
         <div className="p-6 bg-zinc-950/50 space-y-6 animate-in slide-in-from-top-2 duration-300">
-          
-          <div className="bg-zinc-900 border border-zinc-800/80 p-4 rounded-xl">
-            <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <FileText size={16} /> Colar Conteúdo Programático
-            </label>
-            <Textarea 
-              placeholder="Cole o texto bloco do edital aqui..."
-              className="min-h-[100px] text-sm bg-zinc-950 mb-3"
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-            />
-            <div className="flex justify-between items-center">
-              <span className="text-[11px] text-zinc-500">Separará tópicos automaticamente.</span>
-              <Button size="sm" onClick={handleExtrair} className="bg-zinc-800 hover:bg-indigo-600 text-zinc-300 border-none cursor-pointer">
-                Extrair e Inserir
-              </Button>
+
+          {isMentor && (
+            <div className="bg-zinc-900 border border-zinc-800/80 p-4 rounded-xl">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <FileText size={16} /> Colar Conteúdo Programático
+              </label>
+              <Textarea
+                placeholder="Cole o texto bloco do edital aqui..."
+                className="min-h-[100px] text-sm bg-zinc-950 mb-3"
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-zinc-500">Separará tópicos automaticamente.</span>
+                <Button size="sm" onClick={handleExtrair} className="bg-zinc-800 hover:bg-indigo-600 text-zinc-300 border-none cursor-pointer">
+                  Extrair e Inserir
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {discipline.topicos.length > 0 ? (
             <div className="space-y-3 mt-4">
               {discipline.topicos.map(topico => (
-                  <TopicAccordion 
-                  key={topico.id} 
+                <TopicAccordion
+                  key={topico.id}
                   topico={topico}
                   selectedMentee={selectedMentee}
                   onRemove={() => onRemoveTopico(topico.id)}
@@ -713,8 +818,8 @@ function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategor
             </div>
           ) : (
             <div className="py-8 text-center border border-zinc-800/50 border-dashed rounded-xl">
-               <p className="text-zinc-600 text-xs italic tracking-wide uppercase">Nenhum tópico cadastrado nesta disciplina.</p>
-               <p className="text-zinc-700 text-[10px] mt-1">Cole o texto programático acima para extrair.</p>
+              <p className="text-zinc-600 text-xs italic tracking-wide uppercase">Nenhum tópico cadastrado nesta disciplina.</p>
+              <p className="text-zinc-700 text-[10px] mt-1">Cole o texto programático acima para extrair.</p>
             </div>
           )}
         </div>
@@ -758,21 +863,21 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
 
   return (
     <div className="bg-zinc-900 border border-zinc-800/50 rounded-xl overflow-hidden transition-all">
-      <div 
+      <div
         className="p-4 flex gap-4 items-center cursor-pointer hover:bg-zinc-800/30 group"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="text-zinc-400 group-hover:text-amber-400 transition-colors">
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>
-        <div 
+        <div
           className="flex-1 text-sm text-zinc-200 flex items-center gap-2"
           style={{ paddingLeft: topico.level ? `${topico.level * 1.25}rem` : '0' }}
         >
           {topico.level > 0 && <span className="text-zinc-600">↳</span>}
           {isEditing ? (
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 text-sm focus:outline-none focus:border-indigo-500 w-full font-medium"
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
@@ -787,7 +892,7 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
             </span>
           )}
         </div>
-        
+
         {/* Quick Indicators that show when collapsed */}
         {!expanded && !selectedMentee && (
           <div className="hidden md:flex gap-2 text-[10px] font-bold">
@@ -798,19 +903,19 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
         )}
 
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
             className="text-zinc-600 hover:text-indigo-400 p-2 h-auto"
             title="Editar Tópico"
           >
             <Pencil size={16} />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={(e) => { e.stopPropagation(); onRemove(); }} 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
             className="text-zinc-600 hover:text-rose-400 p-2 h-auto"
             title="Remover Tópico"
           >
@@ -822,7 +927,7 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
       {expanded && !selectedMentee && (
         <div className="p-4 bg-zinc-950/80 border-t border-zinc-800/50 animate-in slide-in-from-top-2 duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Phase 1 */}
             <div className="space-y-3">
               <div className="flex justify-between items-center bg-zinc-900/80 p-2 rounded-t-lg border-b border-zinc-800 mt-2">

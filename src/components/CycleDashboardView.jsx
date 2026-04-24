@@ -148,17 +148,8 @@ export default function CycleDashboardView() {
     };
 
     const isButtonVisible = () => {
-        if (instances.length === 0) return true;
-        const latest = instances[0];
-        const dates = getDatesForInstance(latest.startDate);
-        const dateStrings = dates.map(d => d.toISOString().split('T')[0]);
-
-        return latest.disciplines.every(disc => {
-            return dateStrings.some(dStr => {
-                const key = `${disc}_${dStr}`;
-                return progress[key] && progress[key] !== 0;
-            });
-        });
+        // Agora sempre visível para não travar o progresso do usuário
+        return true;
     };
 
     return (
