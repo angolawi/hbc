@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabase';
-import { pullAllData, SYNC_KEYS } from '../utils/dataSync';
+import { pullAllData, smartSync, SYNC_KEYS } from '../utils/dataSync';
 
 const AuthContext = createContext({});
 

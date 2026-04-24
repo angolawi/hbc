@@ -75,10 +75,10 @@ function App() {
       <nav className={`flex flex-col border-r border-zinc-800 bg-zinc-950/80 backdrop-blur-md shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0 opacity-0'}`}>
         <div className="p-6 w-64 flex flex-col h-full">
           <div className="flex justify-between items-center mb-10">
-            <h1 className="text-xl font-black tracking-widest uppercase text-white flex items-center gap-2">
-              <div className="w-2 h-6 bg-indigo-500 rounded-full" />
-              Estudos
-            </h1>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em] mb-1">Protocolo</span>
+              <h1 className="text-2xl font-extrabold tracking-tighter text-white">Estudos</h1>
+            </div>
             <button onClick={() => setIsSidebarOpen(false)} className="text-zinc-500 hover:text-white lg:hidden">
               <X size={24} />
             </button>
