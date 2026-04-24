@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { getPhaseWorkflows, formatTime } from './timerUtils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getPhaseWorkflows, formatTime, calculateRemainingTime } from './timerUtils';
 
 describe('timerUtils', () => {
   describe('formatTime', () => {
@@ -39,6 +39,35 @@ describe('timerUtils', () => {
       expect(steps).toHaveLength(2);
       expect(steps[0].id).toBe('aplique');
       expect(steps[0].requiresMultiCheckboxes).toBe(true);
+    });
+  });
+
+  describe('calculateRemainingTime', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('calculates remaining time correctly', () => {
+      const now = Date.now();
+      const target = now + 10000; // 10 seconds from now
+      expect(calculateRemainingTime(target)).toBe(10);
+      
+      vi.advanceTimersByTime(5000);
+      expect(calculateRemainingTime(target)).toBe(5);
+    });
+
+    it('returns 0 if target time has passed', () => {
+      const now = Date.now();
+      const target = now - 5000;
+      expect(calculateRemainingTime(target)).toBe(0);
+    });
+
+    it('returns 0 if no target provided', () => {
+      expect(calculateRemainingTime(null)).toBe(0);
     });
   });
 });
