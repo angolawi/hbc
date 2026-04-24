@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
-import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle } from 'lucide-react';
+import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote } from 'lucide-react';
+import quotesData from '../assets/frases.json';
 
 export default function HomeDashboardView() {
   const [stats, setStats] = useState({
@@ -12,8 +13,14 @@ export default function HomeDashboardView() {
     disciplinas: [],
     temasAtencao: []
   });
+  const [randomQuote, setRandomQuote] = useState("");
 
   useEffect(() => {
+    // 0. Pick random quote
+    if (quotesData.frases && quotesData.frases.length > 0) {
+      const idx = Math.floor(Math.random() * quotesData.frases.length);
+      setRandomQuote(quotesData.frases[idx]);
+    }
     // 1. Horas Estudadas
     const rawHoras = localStorage.getItem('simpl_horas_estudadas');
     const mins = rawHoras ? parseInt(rawHoras, 10) : 0;
@@ -124,6 +131,22 @@ export default function HomeDashboardView() {
           <p className="text-zinc-500 text-sm font-medium mt-1">Resumo geral das estátisticas de rendimento dos seus estudos.</p>
         </div>
       </header>
+
+      {/* Mural da Realidade Widget */}
+      <Card className="mb-8 p-6 bg-gradient-to-br from-zinc-900 to-zinc-950 border-rose-900/30 overflow-hidden relative group transition-all hover:border-rose-500/30">
+        <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+          <Quote size={120} className="text-rose-500 rotate-12" />
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-3">
+             <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500/80">Mural da Realidade</h2>
+          </div>
+          <p className="text-xl md:text-2xl font-bold text-zinc-200 tracking-tight leading-tight italic">
+            "{randomQuote || "Carregando a realidade..."}"
+          </p>
+        </div>
+      </Card>
 
       {/* Top 3 KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
