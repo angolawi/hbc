@@ -11,7 +11,8 @@ import SettingsView from './components/SettingsView';
 import LoginView from './components/LoginView';
 import MentorView from './components/MentorView';
 import MentorPerformanceView from './components/MentorPerformanceView';
-import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2, Cloud, CloudOff, ShieldCheck, ChevronLeft, TrendingUp } from 'lucide-react';
+import MentorTemplatesView from './components/MentorTemplatesView';
+import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2, Cloud, CloudOff, ShieldCheck, ChevronLeft, TrendingUp, Layers } from 'lucide-react';
 
 function SyncStatus() {
   const [status, setStatus] = useState('idle'); // idle, syncing, success, error
@@ -60,7 +61,7 @@ function App() {
   // Mover Hooks para ANTES dos retornos condicionais
   useEffect(() => {
     if (isMentor && !selectedMentee && activeTab === 'home') {
-      setActiveTab('mentor');
+      setActiveTab('mentor_stats');
     }
   }, [isMentor, selectedMentee, activeTab]);
 
@@ -83,14 +84,15 @@ function App() {
   };
 
   const sidebarItems = [
+    { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },
+    { id: 'mentor', label: 'Gestão de Alunos', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
+    { id: 'mentor_templates', label: 'Biblioteca', icon: Layers, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: !isMentor || !!selectedMentee },
     { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5', hidden: isMentor && !selectedMentee },
     { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
     { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', hidden: isMentor && !selectedMentee, altId: 'create_cycle' },
     { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', hidden: isMentor && !selectedMentee },
-    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : (isMentor ? 'Gerenciar Editais' : 'Meu Edital'), icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
+    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : (isMentor ? 'Cadastrar Editais' : 'Meu Edital'), icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
     { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: isMentor && !selectedMentee },
-    { id: 'mentor', label: 'Gestão de Alunos', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
-    { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },
     { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10' },
   ];
 
@@ -199,6 +201,7 @@ function App() {
           {activeTab === 'settings' && <SettingsView />}
           {activeTab === 'mentor' && <MentorView />}
           {activeTab === 'mentor_stats' && <MentorPerformanceView />}
+          {activeTab === 'mentor_templates' && <MentorTemplatesView setActiveTab={setActiveTab} />}
         </div>
       </main>
       <SyncStatus />

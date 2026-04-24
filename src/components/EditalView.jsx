@@ -21,6 +21,7 @@ export default function EditalView() {
   const [loading, setLoading] = useState(false);
   const [newDiscName, setNewDiscName] = useState('');
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
+  const [newDiscTag, setNewDiscTag] = useState('teorica');
   const [smartText, setSmartText] = useState('');
   
   // Template States
@@ -138,6 +139,7 @@ export default function EditalView() {
       id: Date.now().toString(),
       nome: newDiscName,
       categoria: newDiscCat,
+      tag: newDiscTag,
       currentPhase: 1,
       topicos: []
     };
@@ -228,6 +230,16 @@ export default function EditalView() {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         return { ...d, currentPhase: Number(newPhase) };
+      }
+      return d;
+    });
+    saveToStorage(updated);
+  };
+
+  const updateDisciplineTag = (discId, newTag) => {
+    const updated = disciplines.map(d => {
+      if (d.id === discId) {
+        return { ...d, tag: newTag };
       }
       return d;
     });
@@ -342,6 +354,7 @@ export default function EditalView() {
                 id: Date.now().toString() + '-' + i,
                 nome: line.replace(/:$/, '').trim(),
                 categoria: 'Conhecimentos Específicos',
+                tag: 'teorica',
                 currentPhase: 1,
                 topicos: []
             };
@@ -461,59 +474,26 @@ export default function EditalView() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 relative w-full items-start">
-        {/* Adicionar Disciplina Sidebar */}
-        <Card className="p-6 bg-zinc-900 border-zinc-800/80 shadow-xl rounded-2xl xl:sticky xl:top-24">
-          <h2 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 border-b border-zinc-800 pb-4">
-            <Plus size={20} className="text-indigo-400" /> Adicionar Disciplina
-          </h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-zinc-400 font-medium text-xs uppercase tracking-wider mb-2">Nome da Disciplina</label>
-              <Input 
-                placeholder="Ex: Língua Portuguesa" 
-                value={newDiscName} 
-                onChange={(e) => setNewDiscName(e.target.value)} 
-                onKeyDown={(e) => e.key === 'Enter' && addDiscipline()}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-zinc-400 font-medium text-xs uppercase tracking-wider mb-2">Categoria</label>
-              <select 
-                value={newDiscCat} 
-                onChange={(e) => setNewDiscCat(e.target.value)}
-                className="flex w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
-              >
-                <option value="Conhecimentos Gerais">Conhecimentos Gerais / Básicos</option>
-                <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
-              </select>
-            </div>
-
-            <Button fullWidth className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20" onClick={addDiscipline}>
-              Nova Disciplina
-            </Button>
-          </div>
-        </Card>
-
+      <div className="animate-in slide-in-from-top-4 fade-in duration-300">
         {/* Lista de Disciplinas */}
-        <div className="xl:col-span-2 space-y-6">
+        <div className="space-y-6 max-w-5xl mx-auto">
           {disciplines.length === 0 ? (
             <div className="text-center p-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50 border-dashed">
               <GraduationCap className="mx-auto text-zinc-600 mb-4" size={48} />
-              <h3 className="text-lg font-bold text-zinc-300">Seu edital está vazio</h3>
-              <p className="text-zinc-500 text-sm mt-2">Comece adicionando as matérias que cairão na sua prova no painel ao lado.</p>
+              <h3 className="text-lg font-bold text-zinc-300">Sua biblioteca de matérias está vazia</h3>
+              <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima para cadastrar o edital automaticamente.</p>
             </div>
           ) : (
             <>
               {disciplines.map(disc => (
                 <DisciplineBlock 
                   key={disc.id} 
-                  discipline={disc} 
+                  discipline={disc}
+                  selectedMentee={selectedMentee}
                   onRemove={() => removeDiscipline(disc.id)}
                   onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
                   onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
+                  onChangeTag={(tag) => updateDisciplineTag(disc.id, tag)}
                   onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
                   onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
                   onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
@@ -580,7 +560,7 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
+function DisciplineBlock({ discipline, selectedMentee, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
   const [bulkText, setBulkText] = useState('');
   const [isListCollapsed, setIsListCollapsed] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -612,73 +592,88 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
   const selectPhaseClass = isPhase3 ? "border-rose-800 text-rose-400 bg-rose-950/40" : isPhase2 ? "border-amber-800 text-amber-400 bg-amber-950/40" : "bg-zinc-800 border-zinc-700 text-zinc-400";
 
   return (
-    <Card className={`bg-zinc-900 overflow-hidden rounded-2xl border ${cardBorderClass} transition-colors duration-500`}>
-      <div 
-        className={`p-6 border-b border-zinc-800/50 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${headerBgClass} transition-colors duration-500 cursor-pointer hover:bg-zinc-800/30`}
-        onClick={() => setIsListCollapsed(!isListCollapsed)}
-      >
-        <div onClick={(e) => e.stopPropagation()} className="w-full flex-1">
-          <div className="flex items-center gap-2 group/title">
-            {isEditingName ? (
-              <input 
-                  type="text" 
-                  className="bg-zinc-800 border-none rounded px-2 py-1 text-zinc-100 text-2xl font-black focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onKeyDown={handleSaveName}
-                  onBlur={handleSaveName}
-                  autoFocus
-                />
-            ) : (
-              <>
-              <h3 
-                className="text-2xl font-black text-zinc-100 cursor-text"
-                onDoubleClick={() => setIsEditingName(true)}
-              >
-                {discipline.nome}
+    <Card className={`bg-zinc-900 overflow-hidden rounded-2xl border ${cardBorderClass} transition-all duration-500`}>
+      <div className={`p-6 border-b border-zinc-800/50 ${headerBgClass} transition-colors duration-500`}>
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+          
+          {/* Title row — clicking it toggles expand */}
+          <div className="w-full flex-1">
+            <div
+              className="flex items-center gap-2 group/title cursor-pointer"
+              onClick={() => setIsListCollapsed(!isListCollapsed)}
+            >
+              <h3 className="text-2xl font-black text-zinc-100">
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    className="bg-zinc-800 border-none rounded px-2 py-1 text-zinc-100 text-2xl font-black focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={handleSaveName}
+                    onBlur={handleSaveName}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  discipline.nome
+                )}
               </h3>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsEditingName(true)}
-                className="opacity-0 group-hover/title:opacity-100 text-zinc-500 hover:text-indigo-400 p-1 h-auto transition-opacity"
+              {!isEditingName && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); setIsEditingName(true); }}
+                  className="opacity-0 group-hover/title:opacity-100 text-zinc-500 hover:text-indigo-400 p-1 h-auto transition-opacity"
+                >
+                  <Pencil size={16} />
+                </Button>
+              )}
+            </div>
+
+            {/* Controls row — clicks are isolated from the toggle */}
+            <div className="flex flex-wrap items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+              <select
+                value={discipline.categoria}
+                onChange={(e) => onChangeCategory(e.target.value)}
+                className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700"
               >
-                <Pencil size={16} />
-              </Button>
-              </>
-            )}
+                <option value="Conhecimentos Gerais">Conhecimentos Gerais</option>
+                <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
+              </select>
+
+              <select
+                value={phase}
+                onChange={(e) => onChangePhase(e.target.value)}
+                className={`tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${selectPhaseClass}`}
+              >
+                <option value="1">Fase 1</option>
+                <option value="2">Fase 2</option>
+                <option value="3">Fase 3</option>
+              </select>
+
+              <select
+                value={discipline.tag || 'teorica'}
+                onChange={(e) => onChangeTag(e.target.value)}
+                className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700"
+              >
+                <option value="teorica">🟢 Teórica</option>
+                <option value="calculo">🔴 Exatas</option>
+                <option value="analitica">🟡 Analítica</option>
+              </select>
+
+              <span className="font-black text-zinc-600 text-[10px] uppercase tracking-widest">{discipline.topicos.length} tópicos</span>
+            </div>
           </div>
-          <p className="text-xs text-zinc-500 font-medium mt-2 flex flex-wrap items-center gap-2">
-            <select 
-              value={discipline.categoria} 
-              onChange={(e) => onChangeCategory(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700"
-            >
-              <option value="Conhecimentos Gerais">Conhecimentos Gerais</option>
-              <option value="Conhecimentos Específicos">Conhecimentos Específicos</option>
-            </select>
-            
-            <select 
-              value={phase} 
-              onChange={(e) => onChangePhase(e.target.value)}
-              className={`tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${selectPhaseClass}`}
-            >
-              <option value="1" className="bg-zinc-900 text-zinc-300">Fase 1 (Aprender)</option>
-              <option value="2" className="bg-zinc-900 text-amber-400">Fase 2 (Revisar)</option>
-              <option value="3" className="bg-zinc-900 text-rose-400">Fase 3 (Manutenção)</option>
-            </select>
-            
-            <span className="ml-2 font-bold">{discipline.topicos.length} tópicos extraídos.</span>
-          </p>
-        </div>
-        
-        <div className="flex gap-2 items-center shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => setIsListCollapsed(!isListCollapsed)} className="text-zinc-400 hover:text-zinc-100 p-2">
-            {isListCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 z-10 shrink-0 p-2">
-            <Trash size={18} />
-          </Button>
+
+          {/* Action buttons — also isolated */}
+          <div className="flex gap-2 items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" onClick={() => setIsListCollapsed(!isListCollapsed)} className="text-zinc-400 hover:text-zinc-100 p-2">
+              {isListCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onRemove} className="text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 p-2">
+              <Trash size={18} />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -703,7 +698,7 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
             </div>
           </div>
 
-          {discipline.topicos.length > 0 && (
+          {discipline.topicos.length > 0 ? (
             <div className="space-y-3 mt-4">
               {discipline.topicos.map(topico => (
                   <TopicAccordion 
@@ -715,6 +710,11 @@ function DisciplineBlock({ discipline, onRemove, onChangeCategory, onChangePhase
                   onEditText={(newText) => onEditTopicoText(topico.id, newText)}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="py-8 text-center border border-zinc-800/50 border-dashed rounded-xl">
+               <p className="text-zinc-600 text-xs italic tracking-wide uppercase">Nenhum tópico cadastrado nesta disciplina.</p>
+               <p className="text-zinc-700 text-[10px] mt-1">Cole o texto programático acima para extrair.</p>
             </div>
           )}
         </div>
