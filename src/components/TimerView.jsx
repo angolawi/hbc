@@ -142,7 +142,7 @@ export default function TimerView() {
     setMultiCheckboxesCtx({ banca: false, disciplina: false, anos: false });
 
     setIsCounting(false);
-    clearInterval(timerRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
 
     if (stepIndex + 1 >= currentSteps.length) {
       // Abre modal final integrador
@@ -172,25 +172,10 @@ export default function TimerView() {
     if (isCounting) {
       setIsCounting(false);
       setTargetEndTime(null);
-      clearInterval(timerRef.current);
     } else {
       const endTime = Date.now() + timeRemaining * 1000;
       setTargetEndTime(endTime);
       setIsCounting(true);
-      
-      // Update once immediately to avoid 1s lag
-      timerRef.current = setInterval(() => {
-        const remaining = calculateRemainingTime(endTime);
-        if (remaining <= 0) {
-          clearInterval(timerRef.current);
-          setTimeRemaining(0);
-          setTargetEndTime(null);
-          setIsCounting(false);
-          playAlarm();
-        } else {
-          setTimeRemaining(remaining);
-        }
-      }, 1000);
     }
   };
 
@@ -215,7 +200,7 @@ export default function TimerView() {
 
   const handleCancelSession = () => {
     setIsCounting(false);
-    clearInterval(timerRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
     audioEngine.stop();
     setActiveNoise('none');
     setTimerRunning(false);
@@ -297,13 +282,13 @@ export default function TimerView() {
       try {
         const session = JSON.parse(savedSession);
         setSelectedPhase(session.phase);
-        setRepriseTime(session.times.reprise);
-        setEstudoTime(session.times.estudo);
-        setAplicacaoTime(session.times.aplicacao);
-        setRevisaoTime(session.times.revisao);
-        setDescansoTime(session.times.descanso);
-        setCurrentSteps(session.steps);
-        setStepIndex(session.stepIndex);
+        setRepriseTime(session.times.reprise || 3);
+        setEstudoTime(session.times.estudo || 45);
+        setAplicacaoTime(session.times.aplicacao || 10);
+        setRevisaoTime(session.times.revisao || 5);
+        setDescansoTime(session.times.descanso || 15);
+        setCurrentSteps(session.steps || []);
+        setStepIndex(session.stepIndex || 0);
         setTimerRunning(true);
         
         if (session.targetEndTime) {
@@ -312,26 +297,12 @@ export default function TimerView() {
             setTimeRemaining(remaining);
             setTargetEndTime(session.targetEndTime);
             setIsCounting(true);
-            
-            // Resume the interval
-            timerRef.current = setInterval(() => {
-              const rem = calculateRemainingTime(session.targetEndTime);
-              if (rem <= 0) {
-                clearInterval(timerRef.current);
-                setTimeRemaining(0);
-                setTargetEndTime(null);
-                setIsCounting(false);
-                playAlarm();
-              } else {
-                setTimeRemaining(rem);
-              }
-            }, 1000);
           } else {
             setTimeRemaining(0);
             setIsCounting(false);
           }
         } else {
-          setTimeRemaining(session.timeRemaining);
+          setTimeRemaining(session.timeRemaining || 0);
         }
       } catch (e) {
         console.error("Failed to load session", e);
@@ -361,22 +332,50 @@ export default function TimerView() {
           setTimeRemaining(0);
           setIsCounting(false);
           setTargetEndTime(null);
-          clearInterval(timerRef.current);
-          // Only alarm if it was supposed to finish while we were away
           playAlarm();
         } else {
           setTimeRemaining(remaining);
+          if (isCounting) startInterval();
         }
       }
     };
 
+    const startInterval = () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        const rem = calculateRemainingTime(targetEndTime);
+        if (rem <= 0) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          setTimeRemaining(0);
+          setTargetEndTime(null);
+          setIsCounting(false);
+          playAlarm();
+        } else {
+          setTimeRemaining(rem);
+        }
+      }, 1000);
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if (isCounting && targetEndTime) {
+      startInterval();
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      clearInterval(timerRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isCounting, targetEndTime]);
+
+  // Handle global cleanup for audio
+  useEffect(() => {
+    return () => {
       audioEngine.stop();
     };
-  }, [targetEndTime]);
+  }, []);
 
   if (!timerRunning) {
     return (
@@ -676,7 +675,7 @@ export default function TimerView() {
                   <Button variant="ghost" size="lg" className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 h-14 rounded-xl" onClick={async () => {
                     const confirmed = await confirm("Acelerar para a conclusão desta etapa agora mesmo? O tempo será reduzido a 00:00.");
                     if (confirmed) {
-                      clearInterval(timerRef.current); setIsCounting(false); setTimeRemaining(0);
+                      if (timerRef.current) clearInterval(timerRef.current); setIsCounting(false); setTimeRemaining(0);
                     }
                   }}>Zero</Button>
                 )}
@@ -776,4 +775,3 @@ export default function TimerView() {
 function Badge({ label, className }) {
   return <div className={`inline-flex items-center justify-center text-xs font-bold uppercase tracking-wider rounded-full ${className}`}>{label}</div>
 }
-

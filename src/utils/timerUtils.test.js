@@ -53,7 +53,7 @@ describe('timerUtils', () => {
 
     it('calculates remaining time correctly', () => {
       const now = Date.now();
-      const target = now + 10000; // 10 seconds from now
+      const target = now + 10000;
       expect(calculateRemainingTime(target)).toBe(10);
       
       vi.advanceTimersByTime(5000);
