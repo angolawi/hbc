@@ -30,6 +30,7 @@ export default function TimerView() {
   const [noiseVolume, setNoiseVolume] = useState(0.5);
   const [targetEndTime, setTargetEndTime] = useState(null);
   const timerRef = useRef(null);
+  const workerRef = useRef(null);
 
   // Validation States
   const [uploadFileContext, setUploadFileContext] = useState(null);
@@ -57,22 +58,7 @@ export default function TimerView() {
   };
 
   const playAlarm = () => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(600, ctx.currentTime);
-      gain.gain.setValueAtTime(0.5, ctx.currentTime);
-      osc.start();
-      setTimeout(() => osc.stop(), 500);
-    } catch (e) {
-      console.log("Audio block");
-    }
+    audioEngine.playAlarm();
   };
 
   const handlePhaseChange = (phase) => {
@@ -142,7 +128,7 @@ export default function TimerView() {
     setMultiCheckboxesCtx({ banca: false, disciplina: false, anos: false });
 
     setIsCounting(false);
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (workerRef.current) workerRef.current.postMessage('stop');
 
     if (stepIndex + 1 >= currentSteps.length) {
       // Abre modal final integrador
@@ -176,6 +162,13 @@ export default function TimerView() {
       const endTime = Date.now() + timeRemaining * 1000;
       setTargetEndTime(endTime);
       setIsCounting(true);
+
+      // Auto-start "Keep-Alive" audio at minimum volume to prevent mobile hibernation
+      if (activeNoise === 'none') {
+        handleNoiseToggle('beta');
+        setNoiseVolume(0.02);
+        audioEngine.setVolume(0.02);
+      }
     }
   };
 
@@ -200,7 +193,7 @@ export default function TimerView() {
 
   const handleCancelSession = () => {
     setIsCounting(false);
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (workerRef.current) workerRef.current.postMessage('stop');
     audioEngine.stop();
     setActiveNoise('none');
     setTimerRunning(false);
@@ -290,7 +283,7 @@ export default function TimerView() {
         setCurrentSteps(session.steps || []);
         setStepIndex(session.stepIndex || 0);
         setTimerRunning(true);
-        
+
         if (session.targetEndTime) {
           const remaining = calculateRemainingTime(session.targetEndTime);
           if (remaining > 0) {
@@ -324,6 +317,30 @@ export default function TimerView() {
     }
   }, [timerRunning, selectedPhase, currentSteps, stepIndex, timeRemaining, targetEndTime]);
 
+  // Web Worker for background stability
+  useEffect(() => {
+    const workerCode = `
+      let timer = null;
+      onmessage = (e) => {
+        if (e.data === 'start') {
+          if (timer) clearInterval(timer);
+          timer = setInterval(() => postMessage('tick'), 1000);
+        } else if (e.data === 'stop') {
+          if (timer) clearInterval(timer);
+          timer = null;
+        }
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    workerRef.current = new Worker(url);
+
+    return () => {
+      workerRef.current.terminate();
+      URL.revokeObjectURL(url);
+    };
+  }, []);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && targetEndTime) {
@@ -335,38 +352,36 @@ export default function TimerView() {
           playAlarm();
         } else {
           setTimeRemaining(remaining);
-          if (isCounting) startInterval();
         }
       }
     };
 
-    const startInterval = () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        const rem = calculateRemainingTime(targetEndTime);
-        if (rem <= 0) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          setTimeRemaining(0);
-          setTargetEndTime(null);
-          setIsCounting(false);
-          playAlarm();
-        } else {
-          setTimeRemaining(rem);
-        }
-      }, 1000);
+    const handleTick = () => {
+      if (!targetEndTime) return;
+      const rem = calculateRemainingTime(targetEndTime);
+      if (rem <= 0) {
+        workerRef.current.postMessage('stop');
+        setTimeRemaining(0);
+        setTargetEndTime(null);
+        setIsCounting(false);
+        playAlarm();
+      } else {
+        setTimeRemaining(rem);
+      }
     };
 
+    workerRef.current.onmessage = handleTick;
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     if (isCounting && targetEndTime) {
-      startInterval();
+      workerRef.current.postMessage('start');
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      workerRef.current.postMessage('stop');
     }
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (workerRef.current) workerRef.current.postMessage('stop');
     };
   }, [isCounting, targetEndTime]);
 
@@ -407,7 +422,7 @@ export default function TimerView() {
                   >
                     {/* Clipping container for BG icon */}
                     <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-                       <div className={`absolute -right-2 -top-2 opacity-5 group-hover/phase:opacity-10 transition-all duration-500 z-10 ${selectedPhase === p.id ? 'opacity-15 -rotate-12 scale-110' : 'rotate-12'}`}>
+                      <div className={`absolute -right-2 -top-2 opacity-5 group-hover/phase:opacity-10 transition-all duration-500 z-10 ${selectedPhase === p.id ? 'opacity-15 -rotate-12 scale-110' : 'rotate-12'}`}>
                         <p.bgIcon size={72} className={selectedPhase === p.id ? 'text-indigo-400' : 'text-zinc-400'} />
                       </div>
                     </div>
@@ -442,7 +457,7 @@ export default function TimerView() {
                     {/* Clipping container for BG icon */}
                     <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none opacity-20">
                     </div>
-                    
+
                     {/* Tooltip */}
                     <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 bg-indigo-600 text-white text-[10px] font-bold p-2 rounded-lg opacity-0 group-hover/card:opacity-100 pointer-events-none transition-all duration-300 transform translate-y-2 group-hover/card:translate-y-0 z-50 text-center shadow-xl shadow-indigo-900/40">
                       {field.info}
@@ -675,7 +690,9 @@ export default function TimerView() {
                   <Button variant="ghost" size="lg" className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 h-14 rounded-xl" onClick={async () => {
                     const confirmed = await confirm("Acelerar para a conclusão desta etapa agora mesmo? O tempo será reduzido a 00:00.");
                     if (confirmed) {
-                      if (timerRef.current) clearInterval(timerRef.current); setIsCounting(false); setTimeRemaining(0);
+                      if (workerRef.current) workerRef.current.postMessage('stop');
+                      setIsCounting(false);
+                      setTimeRemaining(0);
                     }
                   }}>Zero</Button>
                 )}
