@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { BrainCircuit } from 'lucide-react';
+import { useNotification } from '../context/NotificationContext';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -9,6 +10,7 @@ const TAGS = {
 };
 
 export default function ActiveCycleView({ setActiveTab }) {
+  const { confirm } = useNotification();
   const [activeCycle, setActiveCycle] = useState(null);
   const [inactiveCycles, setInactiveCycles] = useState([]);
 
@@ -66,8 +68,9 @@ export default function ActiveCycleView({ setActiveTab }) {
               <BrainCircuit className="text-indigo-400" />
               Ciclo Em Andamento
             </h2>
-            <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => {
-              if (window.confirm("Deseja realmente apagar o ciclo atual?")) {
+            <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
+              const confirmed = await confirm("Deseja realmente apagar o ciclo atual?", { variant: 'danger' });
+              if (confirmed) {
                 localStorage.removeItem('simpl_ciclo');
                 setActiveCycle(null);
               }
@@ -122,8 +125,9 @@ export default function ActiveCycleView({ setActiveTab }) {
                   <BrainCircuit className="text-zinc-500" />
                   Ciclo Anterior {cycleIdx === 0 && "(Último)"}
                 </h2>
-                <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={() => {
-                  if (window.confirm("Deseja realmente apagar este ciclo do histórico?")) {
+                <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
+                  const confirmed = await confirm("Deseja realmente apagar este ciclo do histórico?", { variant: 'danger' });
+                  if (confirmed) {
                     const newHistory = [...inactiveCycles];
                     newHistory.splice(cycleIdx, 1);
                     localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));

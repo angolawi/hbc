@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
@@ -11,6 +12,7 @@ const blankMetrics = () => ({
 });
 
 export default function EditalView() {
+  const { alert, confirm } = useNotification();
   const [disciplines, setDisciplines] = useState([]);
   const [newDiscName, setNewDiscName] = useState('');
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
@@ -53,8 +55,9 @@ export default function EditalView() {
     setNewDiscName('');
   };
 
-  const removeDiscipline = (id) => {
-    if (window.confirm('Tem certeza que deseja remover esta disciplina e todos os seus tópicos?')) {
+  const removeDiscipline = async (id) => {
+    const confirmed = await confirm('Tem certeza que deseja remover esta disciplina e todos os seus tópicos?', { variant: 'danger' });
+    if (confirmed) {
       saveToStorage(disciplines.filter(d => d.id !== id));
     }
   };
@@ -278,7 +281,7 @@ export default function EditalView() {
     
     saveToStorage([...disciplines, ...extractedDisciplines]);
     setSmartText('');
-    alert(`Extração Concluída com sucesso! ${extractedDisciplines.length} disciplinas identificadas.`);
+    alert(`Extração Concluída com sucesso! ${extractedDisciplines.length} disciplinas identificadas.`, 'success');
   };
 
   return (
