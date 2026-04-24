@@ -1,37 +1,43 @@
-import { ShieldCheck, AlertTriangle, CloudUpload, CloudDownload } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ShieldCheck, AlertTriangle, CloudUpload, CloudDownload, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { useNotification } from '../context/NotificationContext';
-import { pushAllLocalData, pullAllData } from '../utils/dataSync';
+import { pushAllLocalData, pullAllData, getSyncHistory } from '../utils/dataSync';
 
 export default function SettingsView() {
   const { alert, confirm } = useNotification();
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    setHistory(getSyncHistory());
+    
+    const handleUpdate = () => setHistory(getSyncHistory());
+    window.addEventListener('sync-history-updated', handleUpdate);
+    return () => window.removeEventListener('sync-history-updated', handleUpdate);
+  }, []);
 
   const handleManualPush = async () => {
-    const isConfirmed = await confirm("Isso enviará todos os seus dados locais para a nuvem, sobrescrevendo o que estiver lá. Continuar?");
+    const isConfirmed = await confirm("Isso sincronizará seus dados locais com a nuvem agora. Continuar?");
     if (isConfirmed) {
       try {
         await pushAllLocalData();
-        alert("Sincronização (Envio) concluída com sucesso!", "success");
+        alert("Sincronização forçada concluída!", "success");
       } catch (e) {
-        alert("Falha ao enviar dados. Verifique sua conexão.", "error");
+        alert("Erro na sincronização forçada.", "error");
       }
     }
   };
 
   const handleManualPull = async () => {
-    const isConfirmed = await confirm("Isso substituirá seus dados locais pelos dados salvos na nuvem. Continuar?");
+    const isConfirmed = await confirm("Isso substituirá dados locais se houver versões mais novas na nuvem. Continuar?");
     if (isConfirmed) {
       try {
-        const pulled = await pullAllData();
-        if (pulled) {
-          alert("Dados recuperados com sucesso! Recarregando aplicação...", "success");
-          setTimeout(() => window.location.reload(), 1500);
-        } else {
-          alert("Nenhum dado encontrado na nuvem para este usuário.", "info");
-        }
+        await pullAllData();
+        alert("Sincronização e recuperação concluídas!", "success");
+        setTimeout(() => window.location.reload(), 1000); 
       } catch (e) {
-        alert("Falha ao recuperar dados. Verifique sua conexão.", "error");
+        alert("Erro ao recuperar dados.", "error");
       }
     }
   };
@@ -40,7 +46,7 @@ export default function SettingsView() {
     <section className="animate-in fade-in slide-in-from-bottom-2 duration-500 p-4 md:p-8 flex flex-col items-center">
       <header className="mb-10 text-center">
         <h1 className="text-4xl font-bold mb-3 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 to-zinc-400">Configurações</h1>
-        <p className="text-zinc-500 text-sm max-w-md">Gerencie sua privacidade, backups e sincronização manual.</p>
+        <p className="text-zinc-500 text-sm max-w-md">Gerencie sua privacidade, backups e sincronização inteligente.</p>
       </header>
 
       <div className="w-full max-w-4xl space-y-8">
@@ -48,19 +54,57 @@ export default function SettingsView() {
         <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
           <h3 className="text-xl font-bold text-zinc-100 mb-4 flex items-center gap-2">
             <CloudUpload className="text-indigo-500" size={24} /> 
-            Sincronização na Nuvem
+            Smart Sync (Nuvem)
           </h3>
           <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-            Seus dados são salvos localmente no navegador, mas você pode forçar uma sincronização manual com sua conta Supabase para garantir que tudo esteja atualizado em outros dispositivos.
+            Seus dados são sincronizados automaticamente em segundo plano. O sistema mescla dados do dispositivo e da nuvem priorizando a versão mais recente.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4">
             <Button onClick={handleManualPush} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2">
-              <CloudUpload size={18} /> Forçar Envio para Nuvem
+              <CloudUpload size={18} /> Sincronizar Agora
             </Button>
             <Button onClick={handleManualPull} variant="outline" className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800 flex items-center justify-center gap-2">
-              <CloudDownload size={18} /> Recuperar Dados da Nuvem
+              <CloudDownload size={18} /> Forçar Recuperação
             </Button>
+          </div>
+        </Card>
+
+        {/* Sync History */}
+        <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
+          <h3 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
+            <Clock className="text-amber-500" size={24} /> 
+            Histórico de Sincronização
+          </h3>
+          
+          <div className="space-y-3">
+            {history.length === 0 ? (
+              <p className="text-zinc-600 text-sm italic text-center py-4">Nenhum evento registrado ainda.</p>
+            ) : (
+              history.map((event) => (
+                <div key={event.id} className="flex items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800/50">
+                  <div className="flex items-center gap-4">
+                    {event.status === 'success' ? (
+                      <CheckCircle2 className="text-emerald-500 shrink-0" size={18} />
+                    ) : (
+                      <XCircle className="text-rose-500 shrink-0" size={18} />
+                    )}
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-zinc-300">{event.type}</h4>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">{event.details}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-zinc-600 block leading-none">
+                      {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-[8px] font-bold text-zinc-700 uppercase tracking-tighter">
+                      {new Date(event.timestamp).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 
@@ -70,14 +114,14 @@ export default function SettingsView() {
             <AlertTriangle size={32} />
           </div>
           <div className="flex-1 text-center md:text-left">
-            <h4 className="text-zinc-100 font-bold mb-1">Aviso Importante</h4>
-            <p className="text-zinc-500 text-xs leading-relaxed">
-              O armazenamento principal é local no seu navegador. Se você limpar o cache ou trocar de dispositivo sem estar logado, seus dados não serão recuperados automaticamente.
+            <h4 className="text-zinc-100 font-bold mb-1 text-sm">Privacidade & Armazenamento</h4>
+            <p className="text-zinc-500 text-[10px] leading-relaxed">
+              O armazenamento principal é local no seu navegador para garantir velocidade offline. A nuvem atua como um espelho de segurança e ponte entre seus dispositivos.
             </p>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg shrink-0">
             <ShieldCheck size={16} className="text-indigo-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Privacidade Total</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Totalmente Criptografado</span>
           </div>
         </Card>
       </div>
