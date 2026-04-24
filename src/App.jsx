@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import HomeDashboardView from './components/HomeDashboardView';
 import TimerView from './components/TimerView';
@@ -9,7 +9,46 @@ import ActiveCycleView from './components/ActiveCycleView';
 import CycleDashboardView from './components/CycleDashboardView';
 import SettingsView from './components/SettingsView';
 import LoginView from './components/LoginView';
-import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Timer, BrainCircuit, BarChart3, ListChecks, Settings, Menu, X, Loader2, Cloud, CloudOff } from 'lucide-react';
+
+function SyncStatus() {
+  const [status, setStatus] = useState('idle'); // idle, syncing, success, error
+
+  useEffect(() => {
+    const handleStatus = (e) => {
+      const { status } = e.detail;
+      if (status === 'start') setStatus('syncing');
+      if (status === 'success') {
+        setStatus('success');
+        setTimeout(() => setStatus('idle'), 2000);
+      }
+      if (status === 'error') {
+        setStatus('error');
+        setTimeout(() => setStatus('idle'), 3000);
+      }
+    };
+
+    window.addEventListener('sync-status', handleStatus);
+    return () => window.removeEventListener('sync-status', handleStatus);
+  }, []);
+
+  if (status === 'idle') return null;
+
+  return (
+    <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-2.5 rounded-2xl border backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+      status === 'syncing' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
+      status === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+      'bg-rose-500/10 border-rose-500/20 text-rose-400'
+    }`}>
+      {status === 'syncing' ? <Loader2 size={16} className="animate-spin" /> : 
+       status === 'success' ? <Cloud size={16} /> : <CloudOff size={16} />}
+      <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+        {status === 'syncing' ? 'Sincronizando...' : 
+         status === 'success' ? 'Nuvem Atualizada' : 'Erro na Nuvem'}
+      </span>
+    </div>
+  );
+}
 
 function App() {
   const { user, loading, logout } = useAuth();
@@ -122,6 +161,7 @@ function App() {
           {activeTab === 'settings' && <SettingsView />}
         </div>
       </main>
+      <SyncStatus />
     </div>
   );
 }

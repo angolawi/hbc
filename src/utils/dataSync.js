@@ -17,6 +17,7 @@ const SYNC_KEYS = [
  */
 export const pushData = async (key, data) => {
   try {
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'start' } }));
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -30,8 +31,10 @@ export const pushData = async (key, data) => {
       }, { onConflict: 'user_id, key' });
 
     if (error) throw error;
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'success' } }));
   } catch (err) {
     console.error(`[DataSync] Error pushing ${key}:`, err);
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'push', status: 'error' } }));
   }
 };
 
@@ -40,6 +43,7 @@ export const pushData = async (key, data) => {
  */
 export const pullAllData = async () => {
   try {
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'start' } }));
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -58,11 +62,14 @@ export const pullAllData = async () => {
           localStorage.setItem(item.key, value);
         }
       });
+      window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
       return true; // Data was pulled
     }
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
     return false;
   } catch (e) {
     console.error("[DataSync] Pull All Data failed:", e);
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'error' } }));
     return false;
   }
 };
