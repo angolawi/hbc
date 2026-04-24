@@ -6,6 +6,8 @@ import WeeklyStatsView from './components/WeeklyStatsView';
 import CycleView from './components/CycleView';
 import ActiveCycleView from './components/ActiveCycleView';
 import CycleDashboardView from './components/CycleDashboardView';
+import SettingsView from './components/SettingsView';
+import { Settings } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -62,6 +64,12 @@ function App() {
             >
               Desempenho Geral
             </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`text-left text-sm font-bold tracking-wider uppercase transition-all px-4 py-3 rounded-lg border-l-4 ${activeTab === 'settings' ? 'border-zinc-400 text-zinc-100 bg-zinc-800' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}
+            >
+              Configurações
+            </button>
           </div>
         </div>
       </nav>
@@ -85,6 +93,7 @@ function App() {
             {activeTab === 'cycledashboard' && 'Visão de 30 Dias'}
             {activeTab === 'edital' && 'Edital Verticalizado'}
             {activeTab === 'stats' && 'Desempenho Geral'}
+            {activeTab === 'settings' && 'Configurações'}
           </span>
         </div>
 
@@ -96,6 +105,7 @@ function App() {
           {activeTab === 'cycledashboard' && <CycleDashboardView />}
           {activeTab === 'edital' && <EditalView />}
           {activeTab === 'stats' && <WeeklyStatsView />}
+          {activeTab === 'settings' && <SettingsView />}
         </div>
       </main>
     </div>
