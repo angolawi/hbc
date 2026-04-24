@@ -73,6 +73,8 @@ export default function EditalView() {
             alert("Template atualizado com sucesso!", "success");
             setEditingTemplateId(null);
             setTemplateName('');
+            setDisciplines([]); // Limpa a tela
+            localStorage.removeItem('simpl_edital');
             fetchTemplates();
         }
     } else {
@@ -86,6 +88,8 @@ export default function EditalView() {
         else {
             alert("Template de Edital salvo com sucesso!", "success");
             setTemplateName('');
+            setDisciplines([]); // Limpa a tela
+            localStorage.removeItem('simpl_edital');
             fetchTemplates();
         }
     }
