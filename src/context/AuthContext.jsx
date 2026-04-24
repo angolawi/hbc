@@ -37,10 +37,33 @@ export const AuthProvider = ({ children }) => {
         setUser(currentUser);
         
         if (currentUser) {
-          // Sync data in the background or specifically on login
-          // We don't await this if we want to avoid blocking the initial render
-          // However, for initial session it's better to get the data first
+          // Sync data specifically on login
           await pullAllData();
+
+          // Real-time Auto-Sync Subscription
+          const channel = supabase
+            .channel('db-changes')
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'user_data',
+                filter: `user_id=eq.${currentUser.id}`,
+              },
+              (payload) => {
+                if (payload.new && payload.new.key) {
+                  localStorage.setItem(payload.new.key, JSON.stringify(payload.new.data));
+                  // Signal status for the UI indicator
+                  window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
+                }
+              }
+            )
+            .subscribe();
+
+          return () => {
+             supabase.removeChannel(channel);
+          }
         }
       } catch (e) {
         console.error("[AuthContext] Error during auth state change:", e);
