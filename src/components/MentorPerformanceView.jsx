@@ -36,24 +36,26 @@ export default function MentorPerformanceView() {
 
       if (error) throw error;
 
-      const results = await Promise.all(membershipData.map(async (m) => {
+      const results = await Promise.all((membershipData || []).map(async (m) => {
         const cloudData = await pullAllData(user, m.student_id);
         
         // Calculate Question Performance
-        const edital = cloudData?.find(i => i.key === 'simpl_edital')?.data || [];
+        const edital = (cloudData || [])?.find(i => i.key === 'simpl_edital')?.data || [];
         let totalCertas = 0;
         let totalResolvidas = 0;
         
-        edital.forEach(d => {
-          Object.values(d.weeklyStats || {}).forEach(stat => {
-            totalCertas += Number(stat.certas) || 0;
-            totalResolvidas += Number(stat.resolvidas) || 0;
+        if (Array.isArray(edital)) {
+          edital.forEach(d => {
+            Object.values(d.weeklyStats || {}).forEach(stat => {
+              totalCertas += Number(stat.certas) || 0;
+              totalResolvidas += Number(stat.resolvidas) || 0;
+            });
           });
-        });
+        }
 
         const performance = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
-        const cycles = cloudData?.find(i => i.key === 'simpl_cycle_instances')?.data || [];
-        const hours = cloudData?.find(i => i.key === 'simpl_horas_estudadas')?.data || 0;
+        const cycles = (cloudData || [])?.find(i => i.key === 'simpl_cycle_instances')?.data || [];
+        const hours = (cloudData || [])?.find(i => i.key === 'simpl_horas_estudadas')?.data || 0;
 
         const displayName = m.profiles?.first_name 
             ? `${m.profiles.first_name} ${m.profiles.last_name || ''}`

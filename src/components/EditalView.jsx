@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
-import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil } from 'lucide-react';
+import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, ShieldCheck } from 'lucide-react';
 import { pushData, pullAllData } from '../utils/dataSync';
+import { supabase } from '../utils/supabase';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -15,12 +16,18 @@ const blankMetrics = () => ({
 
 export default function EditalView() {
   const { alert, confirm } = useNotification();
-  const { user, selectedMentee } = useAuth();
+  const { user, selectedMentee, isMentor } = useAuth();
   const [disciplines, setDisciplines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newDiscName, setNewDiscName] = useState('');
   const [newDiscCat, setNewDiscCat] = useState('Conhecimentos Gerais');
   const [smartText, setSmartText] = useState('');
+  
+  // Template States
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [templateName, setTemplateName] = useState('');
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -43,7 +50,73 @@ export default function EditalView() {
       }
     };
     loadData();
-  }, [selectedMentee, user]);
+    if (isMentor) fetchTemplates();
+  }, [selectedMentee, user, isMentor]);
+
+  const fetchTemplates = async () => {
+    const { data } = await supabase.from('edital_templates').select('*').order('created_at', { ascending: false });
+    if (data) setTemplates(data);
+  };
+
+  const saveTemplate = async () => {
+    if (!templateName.trim()) return alert("Dê um nome ao template.");
+    if (disciplines.length === 0) return alert("Adicione pelo menos uma disciplina antes.");
+
+    if (editingTemplateId) {
+        const { error } = await supabase.from('edital_templates').update({
+            name: templateName,
+            data: disciplines
+        }).eq('id', editingTemplateId);
+
+        if (error) alert("Erro ao atualizar template.");
+        else {
+            alert("Template atualizado com sucesso!", "success");
+            setEditingTemplateId(null);
+            setTemplateName('');
+            fetchTemplates();
+        }
+    } else {
+        const { error } = await supabase.from('edital_templates').insert({
+            mentor_id: user.id,
+            name: templateName,
+            data: disciplines
+        });
+
+        if (error) alert("Erro ao salvar template.");
+        else {
+            alert("Template de Edital salvo com sucesso!", "success");
+            setTemplateName('');
+            fetchTemplates();
+        }
+    }
+  };
+
+  const loadTemplate = (template) => {
+    setDisciplines(template.data);
+    setTemplateName(template.name);
+    setEditingTemplateId(template.id);
+    alert(`Template "${template.name}" carregado para edição.`, "success");
+  };
+
+  const applyTemplate = async (templateData) => {
+    const confirmed = await confirm("Isso substituirá todo o edital atual deste aluno pelo template. Continuar?");
+    if (confirmed) {
+        saveToStorage(templateData);
+        alert("Template aplicado com sucesso!", "success");
+        setShowTemplates(false);
+    }
+  };
+
+  const deleteTemplate = async (tid) => {
+    if (await confirm("Excluir este template para sempre?")) {
+        await supabase.from('edital_templates').delete().eq('id', tid);
+        if (editingTemplateId === tid) {
+            setEditingTemplateId(null);
+            setTemplateName('');
+        }
+        fetchTemplates();
+    }
+  }
 
   const saveToStorage = async (data) => {
     setDisciplines(data);
@@ -301,10 +374,60 @@ export default function EditalView() {
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full rounded-none">
       <header className="mb-8 flex justify-between items-center bg-zinc-900 p-6 rounded-2xl border border-zinc-800/80 shadow-lg">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 mb-1">Meu Edital Verticalizado</h1>
-          <p className="text-indigo-400 text-sm font-medium">Controle seu avanço descascando o edital tópico por tópico.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 mb-1">
+            {selectedMentee ? `Edital de ${selectedMentee.email.split('@')[0]}` : 'Meu Edital Verticalizado'}
+          </h1>
+          <p className="text-indigo-400 text-sm font-medium">
+            {selectedMentee ? 'Configure e planeje as matérias para o seu aluno.' : 'Controle seu avanço descascando o edital tópico por tópico.'}
+          </p>
         </div>
       </header>
+
+      {/* Mentor Toolbox - Templates (Assign only at top) */}
+      {isMentor && selectedMentee && (
+        <Card className="mb-8 p-6 bg-zinc-900 border-indigo-500/30 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+                <BrainCircuit size={100} className="text-white" />
+            </div>
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-400 mb-2 flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-indigo-400" />
+                      Ferramentas de Mentor
+                  </h3>
+                  <p className="text-xs text-zinc-600">Atribua um edital pré-configurado para este aluno.</p>
+                </div>
+
+                <div className="w-full md:w-auto flex flex-col gap-2 min-w-[300px]">
+                        <Button 
+                            onClick={() => setShowTemplates(!showTemplates)}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 flex items-center justify-center gap-2"
+                        >
+                            <FileText size={18} />
+                            {showTemplates ? 'Fechar Lista' : 'Ver Meus Templates'}
+                        </Button>
+                        
+                        {showTemplates && templates.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar mt-2">
+                                {templates.map(t => (
+                                    <div key={t.id} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800 group">
+                                        <span className="text-xs font-bold text-zinc-300">{t.name}</span>
+                                        <Button 
+                                            onClick={() => applyTemplate(t.data)}
+                                            size="sm" 
+                                            className="h-7 text-[9px] px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black"
+                                        >
+                                            ATRIBUIR
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {showTemplates && templates.length === 0 && <p className="text-center text-zinc-600 text-[10px] italic">Sem templates.</p>}
+                </div>
+            </div>
+        </Card>
+      )}
 
       {/* Smart Extract Edital Completo */}
       <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-xl rounded-2xl mb-8 relative overflow-hidden group">
@@ -379,20 +502,73 @@ export default function EditalView() {
               <p className="text-zinc-500 text-sm mt-2">Comece adicionando as matérias que cairão na sua prova no painel ao lado.</p>
             </div>
           ) : (
-            disciplines.map(disc => (
-              <DisciplineBlock 
-                key={disc.id} 
-                discipline={disc} 
-                onRemove={() => removeDiscipline(disc.id)}
-                onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
-                onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
-                onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
-                onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
-                onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
-                onEditTopicoText={(topicoId, newText) => editTopicoText(disc.id, topicoId, newText)}
-                onEditName={(newName) => editDisciplineName(disc.id, newName)}
-              />
-            ))
+            <>
+              {disciplines.map(disc => (
+                <DisciplineBlock 
+                  key={disc.id} 
+                  discipline={disc} 
+                  onRemove={() => removeDiscipline(disc.id)}
+                  onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
+                  onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
+                  onAddBulk={(texto) => addTopicosEmMassa(disc.id, texto)}
+                  onRemoveTopico={(topicoId) => removeTopico(disc.id, topicoId)}
+                  onUpdateTopicMetrics={(topicoId, p, f, v) => updateTopicMetrics(disc.id, topicoId, p, f, v)}
+                  onEditTopicoText={(topicoId, newText) => editTopicoText(disc.id, topicoId, newText)}
+                  onEditName={(newName) => editDisciplineName(disc.id, newName)}
+                />
+              ))}
+
+              {/* SAVE TEMPLATE BUTTON AT THE END */}
+              {isMentor && !selectedMentee && (
+                <Card className={`p-8 bg-gradient-to-br border-indigo-500/30 rounded-2xl mt-12 shadow-2xl ${editingTemplateId ? 'from-amber-500/10 to-zinc-900 border-amber-500/50' : 'from-indigo-500/10 to-zinc-900'}`}>
+                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <ShieldCheck className={editingTemplateId ? 'text-amber-400' : 'text-indigo-400'} />
+                        {editingTemplateId ? 'Editando Template' : 'Finalizar e Salvar como Template'}
+                    </h3>
+                    <p className="text-sm text-zinc-400 mb-6">
+                      {editingTemplateId ? `Você está editando o template "${templateName}". As alterações substituirão o arquivo original.` : 'Salve esta configuração completa para poder atribuí-la rapidamente aos seus alunos depois.'}
+                    </p>
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <Input 
+                            placeholder="Nome do Concurso (Ex: Auditor SEFAZ 2024)" 
+                            value={templateName}
+                            onChange={e => setTemplateName(e.target.value)}
+                            className="bg-zinc-950 flex-1 h-14"
+                        />
+                        <Button onClick={saveTemplate} className={`${editingTemplateId ? 'bg-amber-500 hover:bg-amber-400' : 'bg-white hover:bg-zinc-200'} text-zinc-950 px-10 h-14 font-black uppercase tracking-widest`}>
+                            {editingTemplateId ? 'Salvar Alterações' : 'Salvar Novo Template'}
+                        </Button>
+                        {editingTemplateId && (
+                           <Button onClick={() => { setEditingTemplateId(null); setTemplateName(''); }} variant="outline" className="h-14 px-6 text-zinc-500 border-zinc-800">
+                              CANCELAR EDIÇÃO
+                           </Button>
+                        )}
+                    </div>
+                </Card>
+              )}
+
+              {/* Template List (Management View) */}
+              {isMentor && !selectedMentee && templates.length > 0 && (
+                <div className="mt-12">
+                   <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4 px-2">Meus Templates Salvos</h4>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {templates.map(t => (
+                        <div key={t.id} className={`p-4 bg-zinc-900 border rounded-xl flex justify-between items-center group ${editingTemplateId === t.id ? 'border-amber-500/50 bg-amber-500/5' : 'border-zinc-800'}`}>
+                           <span className="font-bold text-zinc-300 text-sm">{t.name}</span>
+                           <div className="flex gap-2">
+                             <Button onClick={() => loadTemplate(t)} variant="ghost" size="sm" className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:bg-indigo-400/10">
+                                CARREGAR / EDITAR
+                             </Button>
+                             <button onClick={() => deleteTemplate(t.id)} className="text-zinc-700 hover:text-rose-500 p-2 opacity-0 group-hover:opacity-100 transition-all">
+                                <Trash size={16} />
+                             </button>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

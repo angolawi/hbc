@@ -18,7 +18,13 @@ export default function ActiveCycleView({ setActiveTab }) {
   useEffect(() => {
     const active = localStorage.getItem('simpl_ciclo');
     if (active) {
-      setActiveCycle(JSON.parse(active));
+      try {
+        const parsed = JSON.parse(active);
+        // Robustez: se for objeto { blocks: [] }, extrai os blocks
+        setActiveCycle(Array.isArray(parsed) ? parsed : (parsed.blocks || []));
+      } catch (e) {
+        console.error("Erro ao carregar ciclo ativo:", e);
+      }
     }
 
     const history = localStorage.getItem('simpl_ciclo_history');
@@ -140,8 +146,8 @@ export default function ActiveCycleView({ setActiveTab }) {
                   Excluir do Histórico
                 </Button>
               </div>
-              <div className={`${getGridClass(cycle.length)} gap-4 pb-4`}>
-                {cycle.map((block, idx) => {
+              <div className={`${getGridClass(Array.isArray(cycle) ? cycle.length : (cycle.blocks?.length || 0))} gap-4 pb-4`}>
+                {(Array.isArray(cycle) ? cycle : (cycle.blocks || [])).map((block, idx) => {
                   const tagInfo = TAGS[block.tag] || { label: 'Desconhecido', icon: '❓', color: 'text-zinc-400 border-zinc-700' };
                   return (
                     <div key={`hist-block-${cycleIdx}-${block.uid}-${idx}`} className="bg-zinc-950/50 border border-zinc-800/50 rounded-xl p-4 min-w-[220px] flex-shrink-0 flex flex-col justify-between">

@@ -8,23 +8,30 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
   const [isMentor, setIsMentor] = useState(false);
   const [selectedMentee, setSelectedMentee] = useState(null);
   const realtimeChannelRef = useRef(null);
   const initializedRef = useRef(false);
 
-  // Busca o papel do mentor de forma isolada
-  const fetchRole = async (userId) => {
+  // Busca o perfil completo (incluindo nome e concurso)
+  const fetchProfile = async (userId) => {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('role')
+        .select('*')
         .eq('id', userId)
         .single();
+      
+      if (data) setProfile(data);
       return data?.role === 'mentor';
     } catch (e) {
       return localStorage.getItem('is_mentor_dev') === 'true';
     }
+  };
+
+  const refreshProfile = async () => {
+    if (user) await fetchProfile(user.id);
   };
 
   const setupRealtime = (userId) => {
@@ -49,7 +56,7 @@ export const AuthProvider = ({ children }) => {
 
     if (currUser) {
       try {
-        const isMentorRole = await fetchRole(currUser.id);
+        const isMentorRole = await fetchProfile(currUser.id);
         setIsMentor(isMentorRole);
         setupRealtime(currUser.id);
         await pullAllData(currUser);
@@ -104,6 +111,8 @@ export const AuthProvider = ({ children }) => {
     session,
     loading,
     isMentor,
+    profile,
+    refreshProfile,
     setIsMentor: (val) => {
       localStorage.setItem('is_mentor_dev', val);
       setIsMentor(val);
