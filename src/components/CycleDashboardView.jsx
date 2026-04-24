@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Check, Trash } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { pushData, pushAllLocalData } from '../utils/dataSync';
 
 export default function CycleDashboardView() {
     const { alert, confirm } = useNotification();
@@ -43,6 +44,7 @@ export default function CycleDashboardView() {
                 };
                 setInstances([newInst]);
                 localStorage.setItem('simpl_cycle_instances', JSON.stringify([newInst]));
+                pushAllLocalData(); // Sync the newly created instance and any old progress
             }
         }
     }, []);
@@ -71,6 +73,7 @@ export default function CycleDashboardView() {
         const updated = [newInst, ...instances]; // Newest first
         setInstances(updated);
         localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
+        pushData('simpl_cycle_instances', updated);
     };
 
     const handleRemoveInstance = async (id) => {
@@ -79,6 +82,7 @@ export default function CycleDashboardView() {
             const updated = instances.filter(i => i.id !== id);
             setInstances(updated);
             localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
+            pushData('simpl_cycle_instances', updated);
         }
     };
 
@@ -104,6 +108,7 @@ export default function CycleDashboardView() {
 
         setProgress(newProgress);
         localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
+        pushData('simpl_grid_progress', newProgress);
     };
 
     const getCellAppearance = (status, isWeekend) => {

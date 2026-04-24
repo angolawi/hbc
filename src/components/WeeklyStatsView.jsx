@@ -4,6 +4,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Plus, Trash, LayoutGrid } from 'lucide-react';
+import { pushData } from '../utils/dataSync';
 
 export default function WeeklyStatsView() {
   const { alert, confirm } = useNotification();
@@ -36,11 +37,13 @@ export default function WeeklyStatsView() {
   const saveDisciplines = (data) => {
     setDisciplines(data);
     localStorage.setItem('simpl_edital', JSON.stringify(data));
+    pushData('simpl_edital', data);
   };
 
   const saveWeeks = (data) => {
     setWeeks(data);
     localStorage.setItem('simpl_weeks', JSON.stringify(data));
+    pushData('simpl_weeks', data);
   };
 
   const addWeek = () => {
