@@ -225,7 +225,7 @@ export default function CycleView({ setActiveTab }) {
     if (selectedMentee) {
       await pushData('simpl_ciclo', cycleData, user, selectedMentee.id);
       alert("Ciclo planejado e atribuído ao aluno com sucesso!", "success");
-      setActiveTab('edital'); 
+      setActiveTab('ciclo'); 
     } else {
       localStorage.setItem('simpl_ciclo', JSON.stringify(cycleData));
       await pushData('simpl_ciclo', cycleData, user);
