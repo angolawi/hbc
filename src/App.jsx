@@ -158,7 +158,7 @@ function App() {
         {selectedMentee && (
           <div className="bg-indigo-600 text-white p-2 flex items-center justify-center gap-4 text-[10px] font-black uppercase tracking-widest animate-in slide-in-from-top-full duration-500 z-50">
             <ShieldCheck size={14} />
-            <span>Monitorando: {selectedMentee.email}</span>
+            <span>Monitorando: {selectedMentee.displayName || selectedMentee.email}</span>
             <button 
               onClick={navigateBackToMentor}
               className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded flex items-center gap-1 transition-colors"

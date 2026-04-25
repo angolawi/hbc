@@ -1,66 +1,117 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Check, Trash } from 'lucide-react';
+import { Calendar, Trash, Loader2, ShieldCheck, Lock, Eye } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
-import { pushData, pushAllLocalData } from '../utils/dataSync';
+import { useAuth } from '../context/AuthContext';
+import { pushData, pullAllData, pushAllLocalData } from '../utils/dataSync';
 
 export default function CycleDashboardView() {
     const { alert, confirm } = useNotification();
-    const [instances, setInstances] = useState(() => {
-        const saved = localStorage.getItem('simpl_cycle_instances');
-        return saved ? JSON.parse(saved) : [];
-    });
-    const [progress, setProgress] = useState(() => {
-        const saved = localStorage.getItem('simpl_grid_progress');
-        return saved ? JSON.parse(saved) : {};
-    });
+    const { user, isMentor, selectedMentee } = useAuth();
+
+    // Mentor com aluno selecionado = modo leitura + criação de instâncias
+    // Aluno (sem selectedMentee) = modo edição (marca células)
+    const isReadOnly = isMentor && !!selectedMentee;
+
+    const [loading, setLoading] = useState(!!selectedMentee);
+    const [instances, setInstances] = useState([]);
+    const [progress, setProgress] = useState({});
     const [activeBrush, setActiveBrush] = useState(1);
 
+    // Carrega dados corretos: do aluno via Supabase (mentor) ou localStorage (aluno)
     useEffect(() => {
-        // Migration logic for old data if no instances exist
-        const migrate = async () => {
-            if (instances.length === 0) {
-                const cicloData = localStorage.getItem('simpl_ciclo');
-                let uniqueDiscs = [];
-                if (cicloData) {
-                    const parsed = JSON.parse(cicloData);
-                    uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
+        const loadData = async () => {
+            if (selectedMentee) {
+                setLoading(true);
+                try {
+                    const cloudData = await pullAllData(user, selectedMentee.id);
+                    const inst = cloudData?.find(i => i.key === 'simpl_cycle_instances')?.data || [];
+                    const prog = cloudData?.find(i => i.key === 'simpl_grid_progress')?.data || {};
+                    setInstances(inst);
+                    setProgress(prog);
+                } catch (e) {
+                    console.error("Erro ao carregar controle do aluno:", e);
+                } finally {
+                    setLoading(false);
                 }
+            } else {
+                // Modo aluno — carrega do localStorage e sincroniza
+                const savedInst = localStorage.getItem('simpl_cycle_instances');
+                const savedProg = localStorage.getItem('simpl_grid_progress');
+                const inst = savedInst ? JSON.parse(savedInst) : [];
+                const prog = savedProg ? JSON.parse(savedProg) : {};
+                setInstances(inst);
+                setProgress(prog);
 
-                const savedProgressStr = localStorage.getItem('simpl_grid_progress');
-                let hasOldProgress = false;
-                if (savedProgressStr) {
-                    const p = JSON.parse(savedProgressStr);
-                    if (Object.keys(p).length > 0) hasOldProgress = true;
-                }
-
-                if (uniqueDiscs.length > 0 || hasOldProgress) {
-                    if (uniqueDiscs.length > 0 && !uniqueDiscs.includes("Revisão Noturna")) {
-                        uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+                // Migração de dados antigos (ciclo sem instâncias)
+                if (inst.length === 0) {
+                    const cicloRaw = localStorage.getItem('simpl_ciclo');
+                    let uniqueDiscs = [];
+                    if (cicloRaw) {
+                        const parsed = JSON.parse(cicloRaw);
+                        const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
+                        uniqueDiscs = [...new Set(blocks.map(b => b.nome))];
                     }
-
-                    const newInst = {
-                        id: Date.now().toString(),
-                        startDate: new Date().toISOString(),
-                        disciplines: uniqueDiscs
-                    };
-                    setInstances([newInst]);
-                    localStorage.setItem('simpl_cycle_instances', JSON.stringify([newInst]));
-                    await pushAllLocalData(); // Sync the newly created instance and any old progress
+                    if (uniqueDiscs.length > 0 || (prog && Object.keys(prog).length > 0)) {
+                        if (uniqueDiscs.length > 0 && !uniqueDiscs.includes("Revisão Noturna")) {
+                            uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+                        }
+                        const newInst = {
+                            id: Date.now().toString(),
+                            startDate: new Date().toISOString(),
+                            disciplines: uniqueDiscs
+                        };
+                        const migrated = [newInst];
+                        setInstances(migrated);
+                        localStorage.setItem('simpl_cycle_instances', JSON.stringify(migrated));
+                        await pushAllLocalData(user);
+                    }
                 }
             }
         };
-        migrate();
-    }, []);
+        loadData();
+    }, [selectedMentee, user]);
 
-    const handleCreateInstance = async () => {
-        const cicloData = localStorage.getItem('simpl_ciclo');
-        let uniqueDiscs = [];
-        if (cicloData) {
-            const parsed = JSON.parse(cicloData);
-            uniqueDiscs = [...new Set(parsed.map(b => b.nome))];
+    // Persiste instâncias na conta do aluno (mentor) ou localmente (aluno)
+    const persistInstances = async (updated) => {
+        setInstances(updated);
+        if (selectedMentee) {
+            await pushData('simpl_cycle_instances', updated, user, selectedMentee.id);
         } else {
-            alert("Você ainda não gerou um ciclo (sem disciplinas na fila). Gere um ciclo primeiro na aba 'Criar Ciclo'.", "error");
-            return;
+            localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
+            await pushData('simpl_cycle_instances', updated, user);
+        }
+    };
+
+    // Persiste progresso — só chamado no modo aluno
+    const persistProgress = async (newProgress) => {
+        setProgress(newProgress);
+        localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
+        await pushData('simpl_grid_progress', newProgress, user);
+    };
+
+    // MENTOR: cria nova instância com as disciplinas do ciclo atual do aluno
+    const handleCreateInstance = async () => {
+        let uniqueDiscs = [];
+
+        if (selectedMentee) {
+            const cloudData = await pullAllData(user, selectedMentee.id);
+            const cicloData = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
+            if (!cicloData) {
+                alert("Este aluno ainda não tem um ciclo gerado. Crie um ciclo para ele primeiro.", "error");
+                return;
+            }
+            const blocks = Array.isArray(cicloData) ? cicloData : (cicloData.blocks || []);
+            uniqueDiscs = [...new Set(blocks.map(b => b.nome))];
+        } else {
+            // Aluno normal não deve chegar aqui (botão oculto), mas como fallback:
+            const cicloRaw = localStorage.getItem('simpl_ciclo');
+            if (!cicloRaw) {
+                alert("Gere um ciclo primeiro na aba 'Criar Ciclo'.", "error");
+                return;
+            }
+            const parsed = JSON.parse(cicloRaw);
+            const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
+            uniqueDiscs = [...new Set(blocks.map(b => b.nome))];
         }
 
         if (!uniqueDiscs.includes("Revisão Noturna")) {
@@ -73,45 +124,37 @@ export default function CycleDashboardView() {
             disciplines: uniqueDiscs
         };
 
-        const updated = [newInst, ...instances]; // Newest first
-        setInstances(updated);
-        localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
-        await pushData('simpl_cycle_instances', updated);
+        await persistInstances([newInst, ...instances]);
+        alert(`Controle criado com ${uniqueDiscs.length} disciplinas. O aluno já pode começar a marcar o progresso.`, "success");
     };
 
+    // MENTOR: remove instância do grid do aluno
     const handleRemoveInstance = async (id) => {
-        const confirmed = await confirm("Certeza que deseja remover esta instância visual do grid? Os dados registrados nas datas continuarão salvos no sistema.", { variant: 'danger' });
+        const confirmed = await confirm("Remover esta instância do grid do aluno? Os dados de progresso continuarão no sistema.", { variant: 'danger' });
         if (confirmed) {
-            const updated = instances.filter(i => i.id !== id);
-            setInstances(updated);
-            localStorage.setItem('simpl_cycle_instances', JSON.stringify(updated));
-            await pushData('simpl_cycle_instances', updated);
+            await persistInstances(instances.filter(i => i.id !== id));
         }
     };
 
+    // ALUNO: marca/desmarca célula (somente quando não é read-only)
     const handleCellClick = async (discName, dateStr) => {
+        if (isReadOnly) return; // Mentor não edita células
+
         const key = `${discName}_${dateStr}`;
         const currentStatus = progress[key] || 0;
 
         let nextStatus;
-
         if (discName.includes("Revisão")) {
             nextStatus = currentStatus === 'X' ? 0 : 'X';
         } else {
             nextStatus = activeBrush;
-            if (currentStatus === activeBrush) {
-                nextStatus = 0; // Desmarcar se clicar na mesma cor
-            }
+            if (currentStatus === activeBrush) nextStatus = 0;
         }
 
         const newProgress = { ...progress, [key]: nextStatus };
-        if (nextStatus === 0) {
-            delete newProgress[key];
-        }
+        if (nextStatus === 0) delete newProgress[key];
 
-        setProgress(newProgress);
-        localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
-        await pushData('simpl_grid_progress', newProgress);
+        await persistProgress(newProgress);
     };
 
     const getCellAppearance = (status, isWeekend) => {
@@ -123,10 +166,8 @@ export default function CycleDashboardView() {
         if (status === 6) return "bg-emerald-500 border-emerald-600";
         if (status === 7) return "bg-pink-500 border-pink-600";
         if (status === 8) return "bg-amber-400 border-amber-500";
-
-        // Vazio ou X
-        if (isWeekend) return "bg-zinc-800/40 border-zinc-700 hover:bg-zinc-700/50";
-        return "bg-zinc-900 border-zinc-800 hover:bg-zinc-800";
+        if (isWeekend) return "bg-zinc-800/40 border-zinc-700";
+        return "bg-zinc-900 border-zinc-800";
     };
 
     const formatDateLabel = (d) => {
@@ -138,7 +179,7 @@ export default function CycleDashboardView() {
     const getDatesForInstance = (startISO) => {
         const dateArray = [];
         const base = new Date(startISO);
-        base.setHours(12, 0, 0, 0); // avoid strict timezone shifts
+        base.setHours(12, 0, 0, 0);
         for (let i = 0; i < 30; i++) {
             const d = new Date(base);
             d.setDate(base.getDate() + i);
@@ -147,30 +188,68 @@ export default function CycleDashboardView() {
         return dateArray;
     };
 
-    const isButtonVisible = () => {
-        // Agora sempre visível para não travar o progresso do usuário
-        return true;
-    };
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-40 gap-4">
+                <Loader2 className="text-rose-500 animate-spin" size={40} />
+                <p className="text-zinc-500 font-black uppercase tracking-widest text-[10px] animate-pulse">
+                    Carregando controle do aluno...
+                </p>
+            </div>
+        );
+    }
 
     return (
         <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full flex flex-col relative pb-32">
+
             <header className="mb-6 p-6 bg-zinc-900 rounded-2xl border border-zinc-800/80 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center shrink-0 gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-zinc-100 flex items-center gap-2">
                         <Calendar className="text-rose-500" />
-                        Controle
+                        Controle de Ciclo
+                        {isReadOnly && (
+                            <span className="flex items-center gap-1 text-indigo-400 text-xs font-black ml-2 border border-indigo-500/30 px-2 py-0.5 rounded-full bg-indigo-500/5">
+                                <Eye size={11} /> Visão Mentor
+                            </span>
+                        )}
                     </h1>
-                    <p className="text-zinc-400 text-sm font-medium mt-1">Crie instâncias fixas de 30 dias com base na sua fila de disciplinas atual.</p>
+                    <p className="text-zinc-400 text-sm font-medium mt-1">
+                        {isReadOnly
+                            ? `Visualizando o controle de ${selectedMentee.displayName || selectedMentee.email.split('@')[0]}. Crie a instância para que o aluno possa marcar o progresso.`
+                            : 'Marque seu progresso diário por disciplina. A instância é criada pelo seu mentor.'}
+                    </p>
                 </div>
-                {isButtonVisible() && (
+
+                {/* Botão de criar instância: SOMENTE para o mentor com aluno selecionado */}
+                {isReadOnly && (
                     <button
                         onClick={handleCreateInstance}
                         className="bg-rose-600 hover:bg-rose-500 flex items-center gap-2 text-white font-bold py-2.5 px-5 rounded-xl shrink-0 shadow-lg shadow-rose-900/20 text-sm mt-2 md:mt-0 tracking-wide transition-all"
                     >
-                        <Calendar size={18} /> Nova Instância (Hoje)
+                        <Calendar size={18} /> Criar Controle (Hoje)
                     </button>
                 )}
             </header>
+
+            {/* Banner de permissão contextual */}
+            {isReadOnly ? (
+                <div className="mb-6 flex items-center gap-3 px-5 py-3 bg-indigo-500/8 border border-indigo-500/20 rounded-2xl">
+                    <ShieldCheck size={16} className="text-indigo-400 shrink-0" />
+                    <p className="text-xs text-indigo-300 font-medium">
+                        <strong>Modo Mentor (Leitura):</strong> Você vê o progresso de <strong>{selectedMentee.displayName || selectedMentee.email}</strong>. 
+                        Somente o aluno pode marcar as células. Você pode criar ou remover instâncias de controle.
+                    </p>
+                </div>
+            ) : (
+                instances.length > 0 && (
+                    <div className="mb-6 flex items-center gap-3 px-5 py-3 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
+                        <Lock size={14} className="text-zinc-500 shrink-0" />
+                        <p className="text-xs text-zinc-500">
+                            O grid de 30 dias é configurado pelo seu mentor. Clique nas células para registrar seu progresso diário.
+                        </p>
+                    </div>
+                )
+            )}
 
             {/* Instâncias */}
             <div className="flex-1 flex flex-col gap-12">
@@ -178,8 +257,10 @@ export default function CycleDashboardView() {
                     <div className="p-12 text-center text-zinc-500 bg-zinc-950/50 rounded-2xl border border-zinc-800 border-dashed max-w-2xl mx-auto w-full mt-8">
                         <Calendar className="mx-auto text-zinc-700 w-16 h-16 mb-4" />
                         <h3 className="text-lg font-bold text-zinc-300 mb-2">Nenhum Grid Criado</h3>
-                        <p className="text-zinc-500 text-sm">
-                            Para visualizar seu quadro de acompanhamento, você precisa fotografar seu ciclo atual criando uma instância.
+                        <p className="text-zinc-500 text-sm max-w-sm mx-auto">
+                            {isReadOnly
+                                ? 'Clique em "Criar Controle" para gerar o grid de 30 dias com as disciplinas do ciclo atual deste aluno.'
+                                : 'Seu mentor ainda não criou um grid de controle para você. O grid aparecerá aqui quando estiver disponível.'}
                         </p>
                     </div>
                 ) : (
@@ -197,15 +278,21 @@ export default function CycleDashboardView() {
                                             ({new Date(inst.startDate).toLocaleDateString('pt-BR')})
                                         </span>
                                     </h2>
-                                    <button onClick={() => handleRemoveInstance(inst.id)} className="text-zinc-600 hover:text-rose-400 p-1 mr-1 transition-colors" title="Remover Grid Visual">
-                                        <Trash size={16} />
-                                    </button>
+                                    {/* Remover instância: somente mentor */}
+                                    {isReadOnly && (
+                                        <button
+                                            onClick={() => handleRemoveInstance(inst.id)}
+                                            className="text-zinc-600 hover:text-rose-400 p-1 mr-1 transition-colors"
+                                            title="Remover Grid Visual"
+                                        >
+                                            <Trash size={16} />
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="overflow-x-auto overflow-y-auto w-full max-h-[60vh] custom-scrollbar pb-4">
                                     <table className="w-auto border-collapse text-left min-w-max table-fixed">
                                         <thead className="sticky top-0 z-20">
-                                            {/* Linha 1: Titulo Geral */}
                                             <tr>
                                                 <th className="sticky left-0 z-30 bg-zinc-900 border-b border-r border-zinc-800 p-3 w-[250px] min-w-[250px] max-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                                                     <span className="text-sm font-bold text-zinc-100">Matérias</span>
@@ -214,10 +301,8 @@ export default function CycleDashboardView() {
                                                     {dates[0].toLocaleDateString('pt-BR')} <span className="text-zinc-600 mx-2">➔</span> {dates[dates.length - 1].toLocaleDateString('pt-BR')}
                                                 </th>
                                             </tr>
-                                            {/* Linha 2: Datas */}
                                             <tr>
-                                                <th className="sticky left-0 z-30 bg-zinc-950 border-b border-r border-zinc-800 p-2 w-[250px] min-w-[250px] max-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                                                </th>
+                                                <th className="sticky left-0 z-30 bg-zinc-950 border-b border-r border-zinc-800 p-2 w-[250px] min-w-[250px] max-w-[250px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]" />
                                                 {dates.map((d, dIdx) => {
                                                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                                                     return (
@@ -235,7 +320,7 @@ export default function CycleDashboardView() {
                                             {inst.disciplines.length === 0 ? (
                                                 <tr>
                                                     <td colSpan={dates.length + 1} className="p-8 text-center text-zinc-500">
-                                                        Nenhuma disciplina encontrada pra esta instância.
+                                                        Nenhuma disciplina encontrada para esta instância.
                                                     </td>
                                                 </tr>
                                             ) : (
@@ -256,14 +341,15 @@ export default function CycleDashboardView() {
                                                                     <td
                                                                         key={cIdx}
                                                                         onClick={() => handleCellClick(disc, dateStr)}
-                                                                        className={`p-0 border-b border-r border-zinc-800/50 cursor-pointer transition-colors w-6 h-6 min-w-[24px] max-w-[24px] text-center align-middle hover:brightness-125 ${getCellAppearance(status, isWeekend)}`}
+                                                                        title={isReadOnly ? 'Somente o aluno pode marcar o progresso' : undefined}
+                                                                        className={`p-0 border-b border-r border-zinc-800/50 w-6 h-6 min-w-[24px] max-w-[24px] text-center align-middle transition-colors ${getCellAppearance(status, isWeekend)} ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:brightness-125'}`}
                                                                     >
                                                                         {status === 'X' && <span className="text-zinc-500 font-bold text-xs select-none">X</span>}
                                                                     </td>
                                                                 );
                                                             })}
                                                         </tr>
-                                                    )
+                                                    );
                                                 })
                                             )}
                                         </tbody>
@@ -275,11 +361,10 @@ export default function CycleDashboardView() {
                 )}
             </div>
 
-            {/* Floating Brush Selector */}
-            {instances.length > 0 && (
+            {/* Seletor de cor: SOMENTE para o aluno (não mentor) */}
+            {!isReadOnly && instances.length > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 p-3 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 text-xs flex flex-wrap gap-4 items-center justify-center z-50 rounded-2xl shadow-2xl">
-                    <span className="text-zinc-400 font-bold mr-2 hidden md:block">Seletor de Cor:</span>
-
+                    <span className="text-zinc-400 font-bold mr-2 hidden md:block">Selecionar Cor:</span>
                     {[
                         { id: 1, color: "bg-orange-500", ring: "ring-orange-500" },
                         { id: 2, color: "bg-red-500", ring: "ring-red-500" },
@@ -297,9 +382,8 @@ export default function CycleDashboardView() {
                             title={`Selecionar Cor ${brush.id}`}
                         />
                     ))}
-
                     <div className="hidden md:flex items-center gap-1.5 ml-4 text-zinc-400 border-l border-zinc-700/50 pl-4 font-medium">
-                        <div className="w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-sm"></div> Clique p/ Apagar
+                        <div className="w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-sm" /> Clique p/ Apagar
                     </div>
                 </div>
             )}

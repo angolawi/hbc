@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
-import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote } from 'lucide-react';
+import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar } from 'lucide-react';
+import { pushData } from '../utils/dataSync';
+import { useAuth } from '../context/AuthContext';
 import quotesData from '../assets/frases.json';
 
 export default function HomeDashboardView() {
@@ -11,9 +13,12 @@ export default function HomeDashboardView() {
     resolvidas: 0,
     desempenhoTotal: 0,
     disciplinas: [],
+    disciplinas: [],
     temasAtencao: []
   });
   const [randomQuote, setRandomQuote] = useState("");
+  const [messages, setMessages] = useState([]);
+  const { user } = useAuth();
 
   useEffect(() => {
     // 0. Pick random quote
@@ -123,7 +128,23 @@ export default function HomeDashboardView() {
       disciplinas: disciplinasCalculadas.sort((a,b) => b.resolvidas - a.resolvidas).slice(0, 5), // top 5
       temasAtencao: temasAvaliacao.slice(0, 10) // top 10 piores
     });
+    // 3. Carregar Recados (simpl_messages)
+    const rawMessages = localStorage.getItem('simpl_messages');
+    if (rawMessages) {
+      try {
+        setMessages(JSON.parse(rawMessages));
+      } catch (e) {}
+    }
   }, []);
+
+  const removeMessage = async (id) => {
+    const updated = messages.filter(m => m.id !== id);
+    setMessages(updated);
+    localStorage.setItem('simpl_messages', JSON.stringify(updated));
+    if (user) {
+      await pushData('simpl_messages', updated, user);
+    }
+  };
 
   const erradas = stats.resolvidas - stats.certas;
 
@@ -153,6 +174,42 @@ export default function HomeDashboardView() {
           </p>
         </div>
       </Card>
+
+      {/* Mural de Recados do Mentor */}
+      {messages.length > 0 && (
+        <div className="mb-8 space-y-4">
+          <div className="flex items-center gap-3 px-2">
+            <MessageSquare className="text-indigo-400" size={20} />
+            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-400">Recados do seu Mentor</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {messages.map(msg => (
+              <Card key={msg.id} className="p-5 bg-indigo-600/10 border-indigo-500/30 relative group overflow-hidden">
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 text-indigo-400">
+                      <Calendar size={12} />
+                      <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+                        {new Date(msg.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-zinc-100 leading-relaxed pr-4">{msg.text}</p>
+                  </div>
+                  <button 
+                    onClick={() => removeMessage(msg.id)}
+                    className="text-indigo-400/50 hover:text-rose-500 p-1 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="absolute bottom-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <MessageSquare size={80} className="text-indigo-500/20" />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top 3 KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

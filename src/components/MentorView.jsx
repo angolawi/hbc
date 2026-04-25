@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { Users, UserPlus, Search, ExternalLink, BarChart3, Clock, BrainCircuit, Trash2 } from 'lucide-react';
+import { Users, UserPlus, Search, ExternalLink, BarChart3, Clock, BrainCircuit, Trash2, Trophy, BookOpen } from 'lucide-react';
 import { supabase } from '../utils/supabase';
-import { smartSync } from '../utils/dataSync';
+import { smartSync, pushData } from '../utils/dataSync';
+import { useNotification } from '../context/NotificationContext';
+import { MessageSquare, Send, Calendar } from 'lucide-react';
 import MentorPerformanceView from './MentorPerformanceView';
 
 export default function MentorView() {
@@ -15,6 +17,9 @@ export default function MentorView() {
   const [showStats, setShowStats] = useState(false);
   const [newMenteeId, setNewMenteeId] = useState('');
   const [menteeStats, setMenteeStats] = useState({});
+  const [activeMuralId, setActiveMuralId] = useState(null);
+  const [muralText, setMuralText] = useState('');
+  const { alert } = useNotification();
 
   useEffect(() => {
     fetchMentees();
@@ -30,17 +35,21 @@ export default function MentorView() {
 
       if (error) throw error;
       setMentees(data.map(m => {
+        const name = m.profiles?.first_name 
+            ? `${m.profiles.first_name} ${m.profiles.last_name || ''}`
+            : m.profiles?.email || 'Aluno';
+        
         const studentObj = { 
           id: m.student_id, 
-          email: m.profiles?.email 
+          email: m.profiles?.email,
+          displayName: name
         };
         return {
           id: m.id,
           student_id: m.student_id,
           email: m.profiles?.email,
-          displayName: m.profiles?.first_name 
-              ? `${m.profiles.first_name} ${m.profiles.last_name || ''}`
-              : m.profiles?.email || 'Aluno',
+          displayName: name,
+          targetContest: m.profiles?.target_contest || null,
           student: studentObj
         };
       }));
@@ -107,6 +116,33 @@ export default function MentorView() {
       fetchMentees();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const sendRecado = async (studentId) => {
+    if (!muralText.trim()) return;
+    try {
+      // Pull current messages to append
+      const cloudData = await smartSync(user, studentId);
+      const currentMessages = cloudData?.find(i => i.key === 'simpl_messages')?.data || [];
+      
+      const newMessage = {
+        id: Date.now().toString(),
+        from: 'mentor',
+        text: muralText.trim(),
+        timestamp: new Date().toISOString(),
+        read: false
+      };
+      
+      const updated = [newMessage, ...currentMessages].slice(0, 20);
+      await pushData('simpl_messages', updated, user, studentId);
+      
+      setMuralText('');
+      setActiveMuralId(null);
+      alert("Recado enviado com sucesso para o aluno!", "success");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao enviar recado.");
     }
   };
 
@@ -194,7 +230,20 @@ export default function MentorView() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                {/* Concurso Alvo */}
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-500/8 border border-indigo-500/20">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/15 shrink-0">
+                    <Trophy size={14} className="text-indigo-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block text-[9px] font-black text-indigo-500/70 uppercase tracking-widest mb-0.5">Concurso Alvo</span>
+                    <span className="text-xs font-bold text-indigo-200 truncate block">
+                      {m.targetContest || 'Não definido pelo aluno'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
                   <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
                     <BarChart3 size={16} className="text-emerald-500 mb-2" />
                     <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Horas Totais</span>
@@ -203,24 +252,50 @@ export default function MentorView() {
                   <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
                     <BrainCircuit size={16} className="text-amber-500 mb-2" />
                     <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Ciclo Atual</span>
-                    <span className="text-xs font-bold text-zinc-100 truncate block">{stats.cycle}</span>
-                  </div>
-                  <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
-                    <Clock size={16} className="text-indigo-500 mb-2" />
-                    <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Último Sync</span>
-                    <span className="text-[10px] font-bold text-zinc-100">
-                      {stats.lastSync ? new Date(stats.lastSync).toLocaleDateString() : '--'}
-                    </span>
+                    <span className="text-xs font-bold text-zinc-100 truncate block">{stats.cycle || 'Não iniciado'}</span>
                   </div>
                 </div>
 
-                <Button 
-                  onClick={() => setSelectedMentee(m.student)}
-                  className="w-full bg-zinc-100 hover:bg-white text-zinc-950 h-14 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2"
-                >
-                  <ExternalLink size={16} />
-                  Gerenciar Aluno
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => setSelectedMentee(m.student)}
+                    className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 h-14 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+                  >
+                    <ExternalLink size={16} />
+                    Gerenciar
+                  </Button>
+                  <Button 
+                    onClick={() => setActiveMuralId(activeMuralId === m.student_id ? null : m.student_id)}
+                    variant="outline"
+                    className={`px-4 h-14 rounded-2xl border-zinc-800 transition-all ${activeMuralId === m.student_id ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' : 'text-zinc-400'}`}
+                  >
+                    <MessageSquare size={18} />
+                  </Button>
+                </div>
+
+                {activeMuralId === m.student_id && (
+                  <div className="animate-in fade-in zoom-in-95 duration-200 mt-2">
+                    <div className="bg-zinc-950 p-4 rounded-2xl border border-indigo-500/20">
+                      <label className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 block">Mural de Recados</label>
+                      <textarea 
+                        value={muralText}
+                        onChange={e => setMuralText(e.target.value)}
+                        placeholder="Escreva um recado ou lembrete para este aluno..."
+                        className="w-full bg-zinc-900 border-none rounded-xl p-3 text-sm text-zinc-200 min-h-[80px] focus:ring-1 focus:ring-indigo-500 resize-none transition-all"
+                      />
+                      <div className="flex justify-end mt-2">
+                        <Button 
+                          onClick={() => sendRecado(m.student_id)}
+                          disabled={!muralText.trim()}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white h-10 px-4 rounded-xl text-[10px] font-bold flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <Send size={14} />
+                          Enviar Recado
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </Card>
             )
           })}

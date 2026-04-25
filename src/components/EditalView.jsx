@@ -278,14 +278,102 @@ export default function EditalView() {
     saveToStorage(updated);
   };
 
-  const editDisciplineName = (discId, newName) => {
+  const propagateRenameAcrossApp = async (discId, oldName, newName) => {
+    // Se estivermos editando um template mestre, não propagamos para o estudo ativo
+    if (editingTemplateId) return;
+
+    // 1. Atualizar Ciclo Ativo (simpl_ciclo)
+    const updateCycle = async (data, targetId) => {
+      const blocks = Array.isArray(data) ? data : (data.blocks || []);
+      let changed = false;
+      blocks.forEach(b => {
+        if (b.id === discId) { b.nome = newName; changed = true; }
+      });
+      if (changed) {
+        const finalCycle = Array.isArray(data) ? blocks : { ...data, blocks };
+        if (!targetId) localStorage.setItem('simpl_ciclo', JSON.stringify(finalCycle));
+        await pushData('simpl_ciclo', finalCycle, user, targetId);
+      }
+    };
+
+    // 2. Atualizar Grid Dashboard (simpl_cycle_instances e simpl_grid_progress)
+    const updateGrid = async (instances, progress, targetId) => {
+      let instChanged = false;
+      const updatedInstances = (instances || []).map(inst => {
+        const newDiscs = inst.disciplines.map(d => {
+          if (d === oldName) { instChanged = true; return newName; }
+          return d;
+        });
+        return { ...inst, disciplines: newDiscs };
+      });
+
+      if (instChanged) {
+        if (!targetId) localStorage.setItem('simpl_cycle_instances', JSON.stringify(updatedInstances));
+        await pushData('simpl_cycle_instances', updatedInstances, user, targetId);
+      }
+
+      let progChanged = false;
+      const updatedProgress = {};
+      Object.keys(progress || {}).forEach(key => {
+        if (key.startsWith(`${oldName}_`)) {
+          const newKey = key.replace(`${oldName}_`, `${newName}_`);
+          updatedProgress[newKey] = progress[key];
+          progChanged = true;
+        } else {
+          updatedProgress[key] = progress[key];
+        }
+      });
+
+      if (progChanged) {
+        if (!targetId) localStorage.setItem('simpl_grid_progress', JSON.stringify(updatedProgress));
+        await pushData('simpl_grid_progress', updatedProgress, user, targetId);
+      }
+    };
+
+    // Executa a propagação
+    try {
+      if (selectedMentee) {
+        // Modo Mentor: Busca do cloud do aluno, altera e salva de volta
+        const cloudData = await pullAllData(user, selectedMentee.id);
+        const cycle = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
+        const inst = cloudData?.find(i => i.key === 'simpl_cycle_instances')?.data;
+        const prog = cloudData?.find(i => i.key === 'simpl_grid_progress')?.data;
+
+        if (cycle) await updateCycle(cycle, selectedMentee.id);
+        if (inst || prog) await updateGrid(inst, prog, selectedMentee.id);
+      } else {
+        // Modo Aluno: Altera localStorage e sync
+        const cycleRaw = localStorage.getItem('simpl_ciclo');
+        const instRaw = localStorage.getItem('simpl_cycle_instances');
+        const progRaw = localStorage.getItem('simpl_grid_progress');
+        
+        if (cycleRaw) await updateCycle(JSON.parse(cycleRaw));
+        if (instRaw || progRaw) await updateGrid(
+          instRaw ? JSON.parse(instRaw) : [], 
+          progRaw ? JSON.parse(progRaw) : {}
+        );
+      }
+    } catch (e) {
+      console.error("Erro na propagação de renomeação:", e);
+    }
+  };
+
+  const editDisciplineName = async (discId, newName) => {
+    let oldName = '';
     const updated = disciplines.map(d => {
       if (d.id === discId) {
+        oldName = d.nome;
         return { ...d, nome: newName };
       }
       return d;
     });
-    saveToStorage(updated);
+    // Garante o save no edital primeiro
+    await saveToStorage(updated);
+    
+    // Propaga para o resto do app (Ciclo/Grid)
+    if (oldName && oldName !== newName) {
+      await propagateRenameAcrossApp(discId, oldName, newName);
+    }
   };
 
   const editTopicoText = (discId, topicoId, newText) => {
@@ -433,7 +521,7 @@ export default function EditalView() {
       <header className="mb-8 flex justify-between items-center bg-zinc-900 p-6 rounded-2xl border border-zinc-800/80 shadow-lg">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100 mb-1">
-            {selectedMentee ? `Edital de ${selectedMentee.email.split('@')[0]}` : 'Meu Edital Verticalizado'}
+            {selectedMentee ? `Edital de ${selectedMentee.displayName || selectedMentee.email.split('@')[0]}` : 'Meu Edital Verticalizado'}
           </h1>
           <p className="text-indigo-400 text-sm font-medium">
             {selectedMentee ? 'Configure e planeje as matérias para o seu aluno.' : 'Controle seu avanço descascando o edital tópico por tópico.'}
@@ -563,7 +651,7 @@ export default function EditalView() {
               <div className="space-y-6">
                 <h2 className="text-xl font-black text-zinc-600 uppercase tracking-widest flex items-center gap-3 ml-2 italic">
                   <GraduationCap className="text-zinc-700" size={24} />
-                  Fomentando o Edital ({disciplines.filter(d => !activeCycleDiscs.includes(d.id)).length})
+                  {(selectedMentee || !isMentor) ? `Fomentando o Edital (${disciplines.filter(d => !activeCycleDiscs.includes(d.id)).length})` : `Disciplinas do Edital (${disciplines.length})`}
                 </h2>
                 <div className="grid grid-cols-1 gap-4">
                   {disciplines
@@ -651,6 +739,10 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
   const [isListCollapsed, setIsListCollapsed] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(discipline.nome);
+
+  useEffect(() => {
+    setEditName(discipline.nome);
+  }, [discipline.nome]);
 
   const handleSaveName = (e) => {
     if (e && e.key && e.key !== 'Enter') return;
