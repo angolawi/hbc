@@ -169,7 +169,7 @@ export default function EditalView() {
     if (!newDiscName.trim()) return;
     const newDisc = {
       id: Date.now().toString(),
-      nome: newDiscName,
+      nome: newDiscName.toUpperCase(),
       categoria: newDiscCat,
       tag: newDiscTag,
       currentPhase: 1,
@@ -363,7 +363,7 @@ export default function EditalView() {
     const updated = disciplines.map(d => {
       if (d.id === discId) {
         oldName = d.nome;
-        return { ...d, nome: newName };
+        return { ...d, nome: newName.toUpperCase() };
       }
       return d;
     });
@@ -481,7 +481,7 @@ export default function EditalView() {
 
         currentDiscipline = {
           id: Date.now().toString() + '-' + i,
-          nome: line.replace(/:$/, '').trim(),
+          nome: line.replace(/:$/, '').trim().toUpperCase(),
           categoria: 'Conhecimentos Específicos',
           tag: 'teorica',
           currentPhase: 1,

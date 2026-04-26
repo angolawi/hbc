@@ -3,6 +3,8 @@ import { Calendar, Trash, Loader2, ShieldCheck, Lock, Eye } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { pushData, pullAllData, pushAllLocalData } from '../utils/dataSync';
+import SpreadsheetImportModal from './modals/SpreadsheetImportModal';
+import { ClipboardPaste } from 'lucide-react';
 
 export default function CycleDashboardView() {
     const { alert, confirm } = useNotification();
@@ -17,6 +19,8 @@ export default function CycleDashboardView() {
     const [progress, setProgress] = useState({});
     const [activeBrush, setActiveBrush] = useState(1);
     const [lockedColor, setLockedColor] = useState(null);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [importTarget, setImportTarget] = useState(null);
 
     // Carrega dados corretos: do aluno via Supabase (mentor) ou localStorage (aluno)
     useEffect(() => {
@@ -53,8 +57,8 @@ export default function CycleDashboardView() {
                         uniqueDiscs = [...new Set(blocks.map(b => b.nome))];
                     }
                     if (uniqueDiscs.length > 0 || (prog && Object.keys(prog).length > 0)) {
-                        if (uniqueDiscs.length > 0 && !uniqueDiscs.includes("Revisão Noturna")) {
-                            uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+                        if (uniqueDiscs.length > 0 && !uniqueDiscs.some(d => d.toUpperCase() === "REVISÃO NOTURNA")) {
+                            uniqueDiscs.push("REVISÃO NOTURNA", "REVISÃO MENSAL");
                         }
                         const newInst = {
                             id: Date.now().toString(),
@@ -126,8 +130,7 @@ export default function CycleDashboardView() {
         }
     }, [progress, instances, isReadOnly]);
 
-    // MENTOR: cria nova instância com as disciplinas do ciclo atual do aluno
-    const handleCreateInstance = async () => {
+    const getStudentCycleSubjects = async () => {
         let uniqueDiscs = [];
 
         if (selectedMentee) {
@@ -135,25 +138,31 @@ export default function CycleDashboardView() {
             const cicloData = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
             if (!cicloData) {
                 alert("Este aluno ainda não tem um ciclo gerado. Crie um ciclo para ele primeiro.", "error");
-                return;
+                return null;
             }
             const blocks = Array.isArray(cicloData) ? cicloData : (cicloData.blocks || []);
             uniqueDiscs = [...new Set(blocks.map(b => b.nome))];
         } else {
-            // Aluno normal não deve chegar aqui (botão oculto), mas como fallback:
             const cicloRaw = localStorage.getItem('simpl_ciclo');
             if (!cicloRaw) {
                 alert("Gere um ciclo primeiro na aba 'Criar Ciclo'.", "error");
-                return;
+                return null;
             }
             const parsed = JSON.parse(cicloRaw);
             const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
             uniqueDiscs = [...new Set(blocks.map(b => b.nome))];
         }
 
-        if (!uniqueDiscs.includes("Revisão Noturna")) {
-            uniqueDiscs.push("Revisão Noturna", "Revisão Mensal");
+        if (uniqueDiscs.length > 0 && !uniqueDiscs.some(d => d.toUpperCase() === "REVISÃO NOTURNA")) {
+            uniqueDiscs.push("REVISÃO NOTURNA", "REVISÃO MENSAL");
         }
+        return uniqueDiscs.length > 0 ? uniqueDiscs : null;
+    };
+
+    // MENTOR: cria nova instância com as disciplinas do ciclo atual do aluno
+    const handleCreateInstance = async () => {
+        const uniqueDiscs = await getStudentCycleSubjects();
+        if (!uniqueDiscs) return;
 
         const newInst = {
             id: Date.now().toString(),
@@ -163,6 +172,26 @@ export default function CycleDashboardView() {
 
         await persistInstances([newInst, ...instances]);
         alert(`Controle criado com ${uniqueDiscs.length} disciplinas. O aluno já pode começar a marcar o progresso.`, "success");
+    };
+
+    const handleOpenHistoryImport = async () => {
+        let allDisciplines = [];
+        if (selectedMentee) {
+             const cloudData = await pullAllData(user, selectedMentee.id);
+             const editalData = cloudData?.find(i => i.key === 'simpl_edital')?.data || [];
+             allDisciplines = editalData.map(d => d.nome);
+             if (!allDisciplines.some(d => d.toUpperCase() === "REVISÃO NOTURNA")) {
+                 allDisciplines.push("REVISÃO NOTURNA", "REVISÃO MENSAL");
+             }
+        }
+
+        if (allDisciplines.length === 0) {
+            alert("Este aluno não possui edital configurado.", "error");
+            return;
+        }
+
+        setImportTarget({ id: 'NEW_INSTANCE', startDate: new Date().toISOString(), disciplines: allDisciplines, isHistory: true });
+        setIsImportModalOpen(true);
     };
 
     // MENTOR: remove instância do grid do aluno
@@ -181,7 +210,7 @@ export default function CycleDashboardView() {
         const currentStatus = progress[key] || 0;
 
         let nextStatus;
-        if (discName.includes("Revisão")) {
+        if (discName.toUpperCase().includes("REVISÃO")) {
             nextStatus = currentStatus === 'X' ? 0 : 'X';
         } else {
             nextStatus = activeBrush;
@@ -192,6 +221,46 @@ export default function CycleDashboardView() {
         if (nextStatus === 0) delete newProgress[key];
 
         await persistProgress(newProgress);
+    };
+
+    const handleSpreadsheetImport = async (results, newStartDate, importedDisciplines) => {
+        const newProgress = { ...progress };
+        let instId = importTarget.id;
+        
+        if (instId === 'NEW_INSTANCE') {
+            const newInst = {
+                id: Date.now().toString(),
+                startDate: newStartDate || new Date().toISOString(),
+                disciplines: (() => {
+                    let dList = importTarget.isHistory && importedDisciplines?.length > 0 
+                        ? [...importedDisciplines] 
+                        : [...importTarget.disciplines];
+                    
+                    if (!dList.some(d => d.toUpperCase() === "REVISÃO NOTURNA")) {
+                        dList.push("REVISÃO NOTURNA", "REVISÃO MENSAL");
+                    } else if (!dList.some(d => d.toUpperCase() === "REVISÃO MENSAL")) {
+                        dList.push("REVISÃO MENSAL");
+                    }
+                    return dList;
+                })()
+            };
+            const updatedInstances = [newInst, ...instances];
+            await persistInstances(updatedInstances);
+            instId = newInst.id;
+        } else if (newStartDate) {
+            const updatedInstances = instances.map(inst => 
+                inst.id === instId ? { ...inst, startDate: newStartDate } : inst
+            );
+            await persistInstances(updatedInstances);
+        }
+
+        results.forEach(res => {
+            const key = `${instId}_${res.discipline}_${res.date}`;
+            newProgress[key] = res.status;
+        });
+
+        await persistProgress(newProgress);
+        alert("Importação concluída com sucesso!", "success");
     };
 
     const getCellAppearance = (status, isWeekend) => {
@@ -257,14 +326,23 @@ export default function CycleDashboardView() {
                     </p>
                 </div>
 
-                {/* Botão de criar instância: SOMENTE para o mentor com aluno selecionado */}
+                {/* Botões de Ação: SOMENTE para o mentor com aluno selecionado */}
                 {isReadOnly && (
-                    <button
-                        onClick={handleCreateInstance}
-                        className="bg-rose-600 hover:bg-rose-500 flex items-center gap-2 text-white font-bold py-2.5 px-5 rounded-xl shrink-0 shadow-lg shadow-rose-900/20 text-sm mt-2 md:mt-0 tracking-wide transition-all"
-                    >
-                        <Calendar size={18} /> Criar Controle (Hoje)
-                    </button>
+                    <div className="flex flex-wrap gap-3 mt-2 md:mt-0">
+                        <button
+                            onClick={handleOpenHistoryImport}
+                            className="bg-zinc-800 hover:bg-zinc-700 flex items-center gap-2 text-zinc-100 font-bold py-2.5 px-5 rounded-xl border border-zinc-700 shadow-xl transition-all active:scale-95 text-sm"
+                        >
+                            <ClipboardPaste size={18} className="text-rose-500" /> Importar Histórico
+                        </button>
+
+                        <button
+                            onClick={handleCreateInstance}
+                            className="bg-rose-600 hover:bg-rose-500 flex items-center gap-2 text-white font-bold py-2.5 px-5 rounded-xl shrink-0 shadow-lg shadow-rose-900/20 text-sm tracking-wide transition-all active:scale-95"
+                        >
+                            <Calendar size={18} /> Criar Controle (Hoje)
+                        </button>
+                    </div>
                 )}
             </header>
 
@@ -315,16 +393,18 @@ export default function CycleDashboardView() {
                                             ({new Date(inst.startDate).toLocaleDateString('pt-BR')})
                                         </span>
                                     </h2>
-                                    {/* Remover instância: somente mentor */}
-                                    {isReadOnly && (
-                                        <button
-                                            onClick={() => handleRemoveInstance(inst.id)}
-                                            className="text-zinc-600 hover:text-rose-400 p-1 mr-1 transition-colors"
-                                            title="Remover Grid Visual"
-                                        >
-                                            <Trash size={16} />
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-3">
+                                        {/* Remover instância: somente mentor */}
+                                        {isReadOnly && (
+                                            <button
+                                                onClick={() => handleRemoveInstance(inst.id)}
+                                                className="text-zinc-600 hover:text-rose-400 p-1 mr-1 transition-colors"
+                                                title="Remover Grid Visual"
+                                            >
+                                                <Trash size={16} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="overflow-x-auto overflow-y-auto w-full max-h-[60vh] custom-scrollbar pb-4">
@@ -362,7 +442,7 @@ export default function CycleDashboardView() {
                                                 </tr>
                                             ) : (
                                                 inst.disciplines.map((disc, rIdx) => {
-                                                    const isRevisao = disc.includes("Revisão");
+                                                    const isRevisao = disc.toUpperCase().includes("REVISÃO");
                                                     return (
                                                         <tr key={rIdx} className="group">
                                                             <td className={`sticky left-0 z-10 border-b border-r border-zinc-800 py-2 px-3 text-[11px] font-semibold w-[275px] min-w-[275px] max-w-[275px] overflow-hidden shadow-[2px_0_5px_rgba(0,0,0,0.5)] ${isRevisao ? 'bg-indigo-950/40 text-indigo-300' : 'bg-zinc-900 text-zinc-300 group-hover:bg-zinc-800'}`}>
@@ -434,6 +514,17 @@ export default function CycleDashboardView() {
                         <div className="w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-sm" /> Clique p/ Apagar
                     </div>
                 </div>
+            )}
+
+            {importTarget && (
+                <SpreadsheetImportModal 
+                    isOpen={isImportModalOpen}
+                    onClose={() => setIsImportModalOpen(false)}
+                    targetInstance={importTarget}
+                    isHistory={importTarget?.isHistory}
+                    subjects={importTarget.disciplines}
+                    onImport={handleSpreadsheetImport}
+                />
             )}
         </section>
     );

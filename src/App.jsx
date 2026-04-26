@@ -90,7 +90,7 @@ function App() {
     { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5', hidden: isMentor && !selectedMentee },
     { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
     { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', hidden: isMentor && !selectedMentee, altId: 'create_cycle' },
-    { id: 'cycledashboard', label: 'Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', hidden: isMentor && !selectedMentee },
+    { id: 'cycledashboard', label: selectedMentee ? 'Controle Aluno' : 'Meu Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', hidden: isMentor && !selectedMentee },
     { id: 'edital', label: selectedMentee ? 'Configurar Edital' : (isMentor ? 'Cadastrar Editais' : 'Meu Edital'), icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
     { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: isMentor && !selectedMentee },
     { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10' },
