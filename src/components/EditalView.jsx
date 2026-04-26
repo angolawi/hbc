@@ -68,6 +68,13 @@ export default function EditalView() {
     };
     loadData();
     if (isMentor) fetchTemplates();
+    const handleSync = (e) => {
+      if (e.detail.type === 'pull' && e.detail.status === 'success' && !selectedMentee) {
+        loadData();
+      }
+    };
+    window.addEventListener('sync-status', handleSync);
+    return () => window.removeEventListener('sync-status', handleSync);
   }, [selectedMentee, user, isMentor]);
 
   const fetchTemplates = async () => {

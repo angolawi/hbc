@@ -39,11 +39,33 @@ export default function CycleDashboardView() {
                     setLoading(false);
                 }
             } else {
-                // Modo aluno — carrega do localStorage e sincroniza
+                // Modo aluno — carrega do localStorage
                 const savedInst = localStorage.getItem('simpl_cycle_instances');
                 const savedProg = localStorage.getItem('simpl_grid_progress');
                 const inst = savedInst ? JSON.parse(savedInst) : [];
-                const prog = savedProg ? JSON.parse(savedProg) : {};
+                let prog = savedProg ? JSON.parse(savedProg) : {};
+
+                // Normalização de chaves Legadas para Uppercase
+                let migratedProg = false;
+                const newProg = {};
+                Object.keys(prog).forEach(key => {
+                    const parts = key.split('_');
+                    if (parts.length >= 3) {
+                        const id = parts[0];
+                        const date = parts[parts.length - 1];
+                        const disc = parts.slice(1, -1).join('_');
+                        const uppercased = `${id}_${disc.toUpperCase()}_${date}`;
+                        if (key !== uppercased) migratedProg = true;
+                        newProg[uppercased] = prog[key];
+                    } else {
+                        newProg[key] = prog[key];
+                    }
+                });
+                if (migratedProg) {
+                    prog = newProg;
+                    localStorage.setItem('simpl_grid_progress', JSON.stringify(prog));
+                }
+
                 setInstances(inst);
                 setProgress(prog);
 
@@ -73,7 +95,43 @@ export default function CycleDashboardView() {
                 }
             }
         };
+
         loadData();
+
+        const handleSync = (e) => {
+            // Recarrega APENAS do localStorage para evitar loop infinito
+            if (e.detail.type === 'pull' && e.detail.status === 'success' && !selectedMentee) {
+                loadData();
+            }
+        };
+        window.addEventListener('sync-status', handleSync);
+        return () => window.removeEventListener('sync-status', handleSync);
+    }, [selectedMentee, user]);
+
+    // Pull inicial de segurança para o aluno (sem loop)
+    useEffect(() => {
+        if (!selectedMentee && user) {
+            pullAllData(user).then(cloudData => {
+                const cloudInst = cloudData?.find(i => i.key === 'simpl_cycle_instances')?.data;
+                const cloudProg = cloudData?.find(i => i.key === 'simpl_grid_progress')?.data;
+                if (cloudInst) setInstances(cloudInst);
+                if (cloudProg) {
+                    const normalized = {};
+                    Object.keys(cloudProg).forEach(k => {
+                        const p = k.split('_');
+                        if (p.length >= 3) {
+                            const id = p[0];
+                            const date = p[p.length - 1];
+                            const disc = p.slice(1, -1).join('_');
+                            normalized[`${id}_${disc.toUpperCase()}_${date}`] = cloudProg[k];
+                        } else {
+                            normalized[k] = cloudProg[k];
+                        }
+                    });
+                    setProgress(normalized);
+                }
+            }).catch(console.error);
+        }
     }, [selectedMentee, user]);
 
     // Persiste instâncias na conta do aluno (mentor) ou localmente (aluno)
@@ -87,11 +145,15 @@ export default function CycleDashboardView() {
         }
     };
 
-    // Persiste progresso — só chamado no modo aluno
+    // Persiste progresso — chama nuvem do aluno se mentor, ou local se aluno
     const persistProgress = async (newProgress) => {
         setProgress(newProgress);
-        localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
-        await pushData('simpl_grid_progress', newProgress, user);
+        if (selectedMentee) {
+            await pushData('simpl_grid_progress', newProgress, user, selectedMentee.id);
+        } else {
+            localStorage.setItem('simpl_grid_progress', JSON.stringify(newProgress));
+            await pushData('simpl_grid_progress', newProgress, user);
+        }
     };
 
     // Lógica de Travamento de Cor por Iteração
@@ -106,7 +168,7 @@ export default function CycleDashboardView() {
             // Procura qualquer marcação de cor (que não seja Revisão 'X') nas disciplinas deste grid ESPECÍFICO
             const currentMarkings = Object.entries(progress).filter(([key, val]) => {
                 const [id, discName] = key.split('_');
-                return id === currentInst.id && subjects.includes(discName) && val !== 0 && val !== 'X';
+                return id === currentInst.id && subjects.some(s => s.toUpperCase() === discName.toUpperCase()) && val !== 0 && val !== 'X';
             });
 
             if (currentMarkings.length > 0) {
@@ -206,7 +268,7 @@ export default function CycleDashboardView() {
     const handleCellClick = async (instId, discName, dateStr) => {
         if (isReadOnly) return; // Mentor não edita células
  
-        const key = `${instId}_${discName}_${dateStr}`;
+        const key = `${instId}_${discName.toUpperCase()}_${dateStr}`;
         const currentStatus = progress[key] || 0;
 
         let nextStatus;
@@ -255,7 +317,7 @@ export default function CycleDashboardView() {
         }
 
         results.forEach(res => {
-            const key = `${instId}_${res.discipline}_${res.date}`;
+            const key = `${instId}_${res.discipline.toUpperCase()}_${res.date}`;
             newProgress[key] = res.status;
         });
 
@@ -450,7 +512,7 @@ export default function CycleDashboardView() {
                                                             </td>
                                                             {dates.map((d, cIdx) => {
                                                                 const dateStr = d.toISOString().split('T')[0];
-                                                                const key = `${inst.id}_${disc}_${dateStr}`;
+                                                                const key = `${inst.id}_${disc.toUpperCase()}_${dateStr}`;
                                                                 const status = progress[key] || 0;
                                                                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
  

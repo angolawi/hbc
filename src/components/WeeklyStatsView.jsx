@@ -40,6 +40,14 @@ export default function WeeklyStatsView() {
 
   useEffect(() => {
     loadData();
+
+    const handleSync = (e) => {
+      if (e.detail.type === 'pull' && e.detail.status === 'success' && !selectedMentee) {
+        loadData();
+      }
+    };
+    window.addEventListener('sync-status', handleSync);
+    return () => window.removeEventListener('sync-status', handleSync);
   }, [selectedMentee, user]);
 
   const calculateGlobalStats = () => {
