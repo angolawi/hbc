@@ -11,17 +11,21 @@ const TAGS = {
 };
 
 export default function ActiveCycleView({ setActiveTab }) {
+  const { user, isMentor, selectedMentee } = useAuth();
   const { confirm } = useNotification();
   const [activeCycle, setActiveCycle] = useState(null);
   const [inactiveCycles, setInactiveCycles] = useState([]);
+  const [isUnlocked, setIsUnlocked] = useState(true);
+  const [lastDiscName, setLastDiscName] = useState("");
 
   useEffect(() => {
     const active = localStorage.getItem('simpl_ciclo');
+    let currentBlocks = [];
     if (active) {
       try {
         const parsed = JSON.parse(active);
-        // Robustez: se for objeto { blocks: [] }, extrai os blocks
-        setActiveCycle(Array.isArray(parsed) ? parsed : (parsed.blocks || []));
+        currentBlocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
+        setActiveCycle(currentBlocks);
       } catch (e) {
         console.error("Erro ao carregar ciclo ativo:", e);
       }
@@ -30,6 +34,29 @@ export default function ActiveCycleView({ setActiveTab }) {
     const history = localStorage.getItem('simpl_ciclo_history');
     if (history) {
       setInactiveCycles(JSON.parse(history));
+    }
+
+    // Trava de Fluxo: verifica se concluiu a última matéria
+    if (currentBlocks.length > 0) {
+      const last = currentBlocks[currentBlocks.length - 1].nome;
+      setLastDiscName(last);
+      
+      const progRaw = localStorage.getItem('simpl_grid_progress');
+      if (progRaw) {
+        try {
+          const prog = JSON.parse(progRaw);
+          const hasMarked = Object.keys(prog).some(key => 
+            key.startsWith(last + "_") && (prog[key] !== 0 && prog[key] !== '0')
+          );
+          setIsUnlocked(hasMarked);
+        } catch(e) {
+          setIsUnlocked(true);
+        }
+      } else {
+        setIsUnlocked(false);
+      }
+    } else {
+      setIsUnlocked(true);
     }
   }, []);
 
@@ -63,9 +90,20 @@ export default function ActiveCycleView({ setActiveTab }) {
           </h1>
           <p className="text-zinc-400 text-sm font-medium mt-1">Visualize sua fila de estudos e histórico.</p>
         </div>
-        <Button onClick={() => setActiveTab('create_cycle')} className="bg-amber-600 hover:bg-amber-500 text-amber-50">
-          + Criar Novo Ciclo
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <Button 
+            disabled={!isUnlocked && !isMentor}
+            onClick={() => setActiveTab('create_cycle')} 
+            className={`${(!isUnlocked && !isMentor) ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-600 hover:bg-amber-500 text-amber-50'}`}
+          >
+            + Criar Novo Ciclo
+          </Button>
+          {!isUnlocked && !isMentor && (
+            <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+              <AlertTriangle size={10} /> Conclua {lastDiscName} no grid para liberar
+            </span>
+          )}
+        </div>
       </div>
 
       {activeCycle && activeCycle.length > 0 ? (
