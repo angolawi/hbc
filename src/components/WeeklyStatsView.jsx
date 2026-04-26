@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function WeeklyStatsView() {
   const { alert, confirm } = useNotification();
-  const { user, selectedMentee } = useAuth();
+  const { user, selectedMentee, isMentor } = useAuth();
   const [disciplines, setDisciplines] = useState([]);
   const [weeks, setWeeks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,6 +41,24 @@ export default function WeeklyStatsView() {
   useEffect(() => {
     loadData();
   }, [selectedMentee, user]);
+
+  const calculateGlobalStats = () => {
+    let totalCertas = 0;
+    let totalResolvidas = 0;
+    
+    disciplines.forEach(d => {
+      Object.values(d.weeklyStats || {}).forEach(s => {
+        totalCertas += Number(s.certas) || 0;
+        totalResolvidas += Number(s.resolvidas) || 0;
+      });
+    });
+
+    const average = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
+    
+    return { totalCertas, totalResolvidas, average };
+  };
+
+  const globalStats = calculateGlobalStats();
 
   const saveDisciplines = async (data) => {
     setDisciplines(data);
@@ -105,6 +123,11 @@ export default function WeeklyStatsView() {
     saveDisciplines(updated);
   };
 
+  const handleNumericChange = (discId, weekId, field, val) => {
+    const numericValue = val.replace(/[^0-9]/g, '');
+    handleStatChange(discId, weekId, field, numericValue);
+  };
+
   const getPercentage = (c, r) => {
     const cert = Number(c); const res = Number(r);
     if (!res || isNaN(res) || res <= 0) return '';
@@ -157,13 +180,17 @@ export default function WeeklyStatsView() {
           <p className="text-zinc-500 text-sm">Controle acumulativo de questões resolvidas.</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          {weeks.length === 0 && (
-            <Input placeholder="Data Base" value={newWeekName} onChange={e => setNewWeekName(e.target.value)} className="w-full md:w-48 bg-zinc-950" />
+          {isMentor && (
+            <>
+              {weeks.length === 0 && (
+                <Input placeholder="Data Base" value={newWeekName} onChange={e => setNewWeekName(e.target.value)} className="w-full md:w-48 bg-zinc-950" />
+              )}
+              <Button onClick={addWeek} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4">
+                <Plus size={16} className="mr-2" /> 
+                {weeks.length === 0 ? "Iniciar" : "Nova Semana"}
+              </Button>
+            </>
           )}
-          <Button onClick={addWeek} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4">
-            <Plus size={16} className="mr-2" /> 
-            {weeks.length === 0 ? "Iniciar" : "Novo Ciclo"}
-          </Button>
         </div>
       </header>
 
@@ -177,7 +204,9 @@ export default function WeeklyStatsView() {
                   <th key={w.id} colSpan="3" className="p-3 text-center border-r border-zinc-800 font-black text-[10px] uppercase tracking-widest text-emerald-400 bg-emerald-900/10">
                     <div className="flex items-center justify-center gap-2">
                       {w.name}
-                      <button onClick={() => removeWeek(w.id)} className="text-zinc-600 hover:text-rose-400 p-1"><Trash size={12} /></button>
+                      {isMentor && (
+                        <button onClick={() => removeWeek(w.id)} className="text-zinc-600 hover:text-rose-400 p-1"><Trash size={12} /></button>
+                      )}
                     </div>
                   </th>
                 ))}
@@ -212,10 +241,30 @@ export default function WeeklyStatsView() {
                           return (
                             <Fragment key={`${d.id}-${w.id}`}>
                               <td className="p-2 border-r border-zinc-800/50">
-                                <Input type="number" className="h-8 text-[11px] text-center bg-zinc-950" value={stats.certas} onChange={e => handleStatChange(d.id, w.id, 'certas', e.target.value)} />
+                                {isMentor ? (
+                                  <Input 
+                                    type="text" 
+                                    inputMode="numeric"
+                                    className="h-8 text-[11px] text-center bg-zinc-950" 
+                                    value={stats.certas} 
+                                    onChange={e => handleNumericChange(d.id, w.id, 'certas', e.target.value)} 
+                                  />
+                                ) : (
+                                  <div className="h-8 flex items-center justify-center text-[11px] font-bold text-zinc-300">{stats.certas || '-'}</div>
+                                )}
                               </td>
                               <td className="p-2 border-r border-zinc-800/50">
-                                <Input type="number" className="h-8 text-[11px] text-center bg-zinc-950" value={stats.resolvidas} onChange={e => handleStatChange(d.id, w.id, 'resolvidas', e.target.value)} />
+                                {isMentor ? (
+                                  <Input 
+                                    type="text" 
+                                    inputMode="numeric"
+                                    className="h-8 text-[11px] text-center bg-zinc-950" 
+                                    value={stats.resolvidas} 
+                                    onChange={e => handleNumericChange(d.id, w.id, 'resolvidas', e.target.value)} 
+                                  />
+                                ) : (
+                                  <div className="h-8 flex items-center justify-center text-[11px] font-bold text-zinc-300">{stats.resolvidas || '-'}</div>
+                                )}
                               </td>
                               <td className={`p-2 border-r border-zinc-800 text-center text-[11px] font-bold ${parseFloat(pct) >= 80 ? 'text-emerald-400' : 'text-zinc-500'}`}>{pct || '-'}</td>
                             </Fragment>
@@ -223,32 +272,61 @@ export default function WeeklyStatsView() {
                         })}
                       </tr>
                     ))}
-                    {weeks.length > 0 && (
-                      <tr className="bg-zinc-950 border-t-2 border-zinc-800 mb-4">
-                        <td className="p-3 font-bold text-[10px] uppercase text-right border-r-4 border-zinc-800 sticky left-0 bg-zinc-950">Subtotal {catName}</td>
-                        {weeks.map((w, i) => {
-                          const tot = getCategoryTotalForWeek(discs, w.id);
-                          const cum = getCumulativeTotalForWeek(discs, i);
-                          return (
-                            <Fragment key={`tot-${w.id}`}>
-                              <td className="p-3 border-r border-zinc-800/50"></td>
-                              <td className="p-3 text-center border-r border-zinc-800 text-[11px] font-bold text-white">
-                                <div className="flex flex-col">
-                                   <span>{tot.tResolvidas}</span>
-                                   <span className="text-[9px] text-emerald-500">Σ {cum.cResolvidas}</span>
-                                </div>
-                              </td>
-                              <td className="p-3 border-r border-zinc-800 bg-emerald-950/10 text-center text-emerald-400 font-bold text-[10px]">
-                                {getPercentage(tot.tCertas, tot.tResolvidas)}
-                              </td>
-                            </Fragment>
-                          )
-                        })}
-                      </tr>
-                    )}
+                    {/* Subtotais por categoria removidos conforme solicitado para visão consolidada única no rodapé */}
                   </Fragment>
                 );
               })}
+
+              {/* RODAPÉ NORMALIZADO (PREMIUM DARK) */}
+              {weeks.length > 0 && (
+                <>
+                  {/* Linha 1: Total */}
+                  <tr className="bg-zinc-950/40">
+                    <td className="p-4 border-r-4 border-zinc-800 sticky left-0 bg-zinc-950 z-20"></td>
+                    {weeks.map(w => {
+                      const tot = getCategoryTotalForWeek(disciplines, w.id);
+                      return (
+                        <Fragment key={`tot-ui-${w.id}`}>
+                          <td className="p-2 border border-zinc-800 bg-zinc-900 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center">Total</td>
+                          <td className="p-2 border border-zinc-800 bg-zinc-800/30 text-zinc-100 text-sm font-black text-center">{tot.tResolvidas}</td>
+                          <td className="p-2 border-none bg-transparent"></td>
+                        </Fragment>
+                      )
+                    })}
+                  </tr>
+
+                  {/* Linha 2: Total Geral */}
+                  <tr className="bg-zinc-950/40">
+                    <td className="p-4 border-r-4 border-zinc-800 sticky left-0 bg-zinc-950 z-20"></td>
+                    {weeks.map((w, idx) => {
+                      const cum = getCumulativeTotalForWeek(disciplines, idx);
+                      return (
+                        <Fragment key={`cum-ui-${w.id}`}>
+                          <td className="p-2 border border-zinc-800 bg-zinc-900 text-[9px] font-black uppercase tracking-widest text-emerald-500/60 text-center">Total Geral</td>
+                          <td className="p-2 border border-zinc-800 bg-emerald-500/5 text-emerald-400 text-sm font-black text-center">{cum.cResolvidas}</td>
+                          <td className="p-2 border-none bg-transparent"></td>
+                        </Fragment>
+                      )
+                    })}
+                  </tr>
+
+                  {/* Linha 3: Média */}
+                  <tr className="bg-zinc-950/40">
+                    <td className="p-4 border-r-4 border-zinc-800 sticky left-0 bg-zinc-950 z-20"></td>
+                    {weeks.map(w => {
+                      const tot = getCategoryTotalForWeek(disciplines, w.id);
+                      const pct = getPercentage(tot.tCertas, tot.tResolvidas);
+                      return (
+                        <Fragment key={`avg-ui-${w.id}`}>
+                          <td className="p-2 border border-zinc-800 bg-zinc-900 text-[9px] font-black uppercase tracking-widest text-amber-500/60 text-center">Média</td>
+                          <td className="p-2 border border-zinc-800 bg-amber-500/5 text-amber-500 text-sm font-black text-center">{pct || '0.00%'}</td>
+                          <td className="p-2 border-none bg-transparent"></td>
+                        </Fragment>
+                      )
+                    })}
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         </div>
