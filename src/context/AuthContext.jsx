@@ -35,7 +35,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const setupRealtime = (userId) => {
-    if (realtimeChannelRef.current) realtimeChannelRef.current.unsubscribe();
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+    }
     
     realtimeChannelRef.current = supabase
       .channel(`user_data_${userId}`)
@@ -53,6 +55,9 @@ export const AuthProvider = ({ children }) => {
     const currUser = currSession?.user ?? null;
     
     if (currUser) {
+      // Evita reinicializações duplicadas para o mesmo usuário
+      if (user?.id === currUser.id && initializedRef.current && profile) return;
+
       // Define o usuário e a sessão imediatamente
       setUser(currUser);
       setSession(currSession);

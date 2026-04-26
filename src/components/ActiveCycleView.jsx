@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { pushData } from '../utils/dataSync';
 
@@ -18,7 +19,7 @@ export default function ActiveCycleView({ setActiveTab }) {
   const [isUnlocked, setIsUnlocked] = useState(true);
   const [lastDiscName, setLastDiscName] = useState("");
 
-  useEffect(() => {
+  const loadData = () => {
     const active = localStorage.getItem('simpl_ciclo');
     let currentBlocks = [];
     if (active) {
@@ -29,11 +30,15 @@ export default function ActiveCycleView({ setActiveTab }) {
       } catch (e) {
         console.error("Erro ao carregar ciclo ativo:", e);
       }
+    } else {
+      setActiveCycle(null);
     }
 
     const history = localStorage.getItem('simpl_ciclo_history');
     if (history) {
       setInactiveCycles(JSON.parse(history));
+    } else {
+      setInactiveCycles([]);
     }
 
     // Trava de Fluxo: verifica se concluiu a última matéria
@@ -58,6 +63,19 @@ export default function ActiveCycleView({ setActiveTab }) {
     } else {
       setIsUnlocked(true);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+
+    // Listen for sync completion to reload data
+    const handleSync = (e) => {
+      if (e.detail.type === 'pull' && e.detail.status === 'success') {
+        loadData();
+      }
+    };
+    window.addEventListener('sync-status', handleSync);
+    return () => window.removeEventListener('sync-status', handleSync);
   }, []);
 
   const formatMins = (mins) => {
