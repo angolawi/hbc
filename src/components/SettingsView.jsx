@@ -14,6 +14,7 @@ export default function SettingsView() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [targetContest, setTargetContest] = useState('');
+  const [hardMode, setHardMode] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -25,7 +26,11 @@ export default function SettingsView() {
         setTargetContest(data.target_contest || '');
       }
     };
+
     fetchProfile();
+
+    const localHardMode = localStorage.getItem('simpl_hard_mode') === 'true';
+    setHardMode(localHardMode);
   }, [user]);
 
   const handleUpdateProfile = async () => {
@@ -35,9 +40,16 @@ export default function SettingsView() {
       last_name: lastName,
       target_contest: targetContest
     }).eq('id', user.id);
-    
+
     if (!error) await refreshProfile();
-    
+
+    // Save Hard Mode to localStorage and push if changed
+    const currentHardMode = localStorage.getItem('simpl_hard_mode') === 'true';
+    if (hardMode !== currentHardMode) {
+      localStorage.setItem('simpl_hard_mode', hardMode.toString());
+      await pushData('simpl_hard_mode', hardMode, user);
+    }
+
     setSaving(false);
     if (error) alert("Erro ao atualizar perfil.", "error");
     else alert("Perfil atualizado com sucesso!", "success");
@@ -45,7 +57,7 @@ export default function SettingsView() {
 
   useEffect(() => {
     setHistory(getSyncHistory());
-    
+
     const handleUpdate = () => setHistory(getSyncHistory());
     window.addEventListener('sync-history-updated', handleUpdate);
     return () => window.removeEventListener('sync-history-updated', handleUpdate);
@@ -74,13 +86,12 @@ export default function SettingsView() {
       try {
         await pullAllData();
         alert("Sincronização e recuperação concluídas!", "success");
-        setTimeout(() => window.location.reload(), 1000); 
+        setTimeout(() => window.location.reload(), 1000);
       } catch (e) {
         alert("Erro ao recuperar dados.", "error");
       }
     }
   };
-
   return (
     <section className="animate-in fade-in slide-in-from-bottom-2 duration-500 p-4 md:p-8 flex flex-col items-center">
       <header className="mb-10 text-center">
@@ -92,10 +103,10 @@ export default function SettingsView() {
         {/* Personal Profile Data */}
         <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
           <h3 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
-            <Fingerprint className="text-indigo-500" size={24} /> 
+            <Fingerprint className="text-indigo-500" size={24} />
             Dados de Identificação
           </h3>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -107,18 +118,18 @@ export default function SettingsView() {
                 <Input placeholder="Ex: Silva" value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
             </div>
-            
-             {!isMentor && (
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Concurso Alvo (Foco Atual)</label>
-                 <Input placeholder="Ex: Receita Federal, PF, etc." value={targetContest} onChange={(e) => setTargetContest(e.target.value)} />
-               </div>
-             )}
 
-            <Button 
-                onClick={handleUpdateProfile} 
-                className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white w-full sm:w-auto"
-                disabled={saving}
+            {!isMentor && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Concurso Alvo (Foco Atual)</label>
+                <Input placeholder="Ex: Receita Federal, PF, etc." value={targetContest} onChange={(e) => setTargetContest(e.target.value)} />
+              </div>
+            )}
+
+            <Button
+              onClick={handleUpdateProfile}
+              className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white w-full sm:w-auto"
+              disabled={saving}
             >
               {saving ? 'Salvando...' : 'Salvar Alterações de Perfil'}
             </Button>
@@ -128,10 +139,10 @@ export default function SettingsView() {
         {/* Account Info and Mentor Mode */}
         <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
           <h3 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
-            <User className="text-indigo-500" size={24} /> 
+            <User className="text-indigo-500" size={24} />
             Perfil & Gestão
           </h3>
-          
+
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800 gap-4">
               <div>
@@ -149,8 +160,8 @@ export default function SettingsView() {
                   Perfil de Usuário: <span className="text-indigo-400 capitalize">{isMentor ? 'Mentor' : 'Aluno'}</span>
                 </h4>
                 <p className="text-zinc-500 text-[10px] leading-relaxed max-w-sm">
-                  {isMentor 
-                    ? 'Você possui permissões de gestão e acesso ao dashboard de análise global.' 
+                  {isMentor
+                    ? 'Você possui permissões de gestão e acesso ao dashboard de análise global.'
                     : 'Você está utilizando a versão de estudante do HBC estudos.'}
                 </p>
               </div>
@@ -161,7 +172,7 @@ export default function SettingsView() {
         {/* Cloud Sync Status */}
         <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
           <h3 className="text-xl font-bold text-zinc-100 mb-4 flex items-center gap-2">
-            <CloudUpload className="text-indigo-500" size={24} /> 
+            <CloudUpload className="text-indigo-500" size={24} />
             Smart Sync (Nuvem)
           </h3>
           <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
@@ -178,13 +189,56 @@ export default function SettingsView() {
           </div>
         </Card>
 
+        {/* Experience Settings */}
+        {!isMentor && (
+          <Card className="p-8 bg-zinc-900 border-rose-900/30 shadow-xl rounded-3xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
+              <AlertTriangle size={80} className="text-rose-500" />
+            </div>
+
+            <div className="relative z-10">
+              <h3 className="text-xl font-bold text-zinc-100 mb-2 flex items-center gap-2">
+                <ShieldCheck className="text-rose-500" size={24} />
+                Configurações de Experiência
+              </h3>
+              <p className="text-zinc-500 text-xs mb-8 uppercase font-bold tracking-widest">Ajuste o tom da plataforma para o seu perfil.</p>
+
+              <div className="flex items-center justify-between p-6 bg-rose-500/5 rounded-2xl border border-rose-500/20">
+                <div className="flex-1 pr-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="text-rose-400 font-black uppercase tracking-widest text-xs">Modo Hardcore</h4>
+                    <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded">BETA</span>
+                  </div>
+                  <p className="text-zinc-500 text-[10px] leading-relaxed max-w-sm">
+                    Substitui frases motivacionais por provocações agressivas e realidades brutas sobre a concorrência. Recomendado apenas para quem tem mentalidade de alta performance.
+                  </p>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const newVal = !hardMode;
+                    setHardMode(newVal);
+                    localStorage.setItem('simpl_hard_mode', newVal.toString());
+                    if (user) {
+                      await pushData('simpl_hard_mode', newVal, user);
+                    }
+                  }}
+                  className={`w-14 h-8 rounded-full transition-all duration-300 relative ${hardMode ? 'bg-rose-600' : 'bg-zinc-800'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 ${hardMode ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Sync History */}
         <Card className="p-8 bg-zinc-900 border-zinc-800 shadow-xl rounded-3xl">
           <h3 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
-            <Clock className="text-amber-500" size={24} /> 
+            <Clock className="text-amber-500" size={24} />
             Histórico de Sincronização
           </h3>
-          
+
           <div className="space-y-3">
             {history.length === 0 ? (
               <p className="text-zinc-600 text-sm italic text-center py-4">Nenhum evento registrado ainda.</p>

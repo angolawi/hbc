@@ -8,7 +8,8 @@ export const SYNC_KEYS = [
   'simpl_ciclo_history',
   'simpl_cycle_instances',
   'simpl_grid_progress',
-  'simpl_messages'
+  'simpl_messages',
+  'simpl_hard_mode'
 ];
 
 const SYNC_HISTORY_KEY = 'simpl_sync_history';
