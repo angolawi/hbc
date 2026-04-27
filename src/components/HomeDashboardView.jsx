@@ -14,7 +14,11 @@ export default function HomeDashboardView() {
     resolvidas: 0,
     desempenhoTotal: 0,
     disciplinas: [],
-    temasAtencao: []
+    temasAtencao: [],
+    fase1Pct: 0,
+    fase2Pct: 0,
+    fase3Pct: 0,
+    totalTopicos: 0
   });
   const [randomQuote, setRandomQuote] = useState("");
   const [messages, setMessages] = useState([]);
@@ -60,6 +64,10 @@ export default function HomeDashboardView() {
     let totalResolvidas = 0;
     const disciplinasCalculadas = [];
     const temasAvaliacao = [];
+    let totalTopicos = 0;
+    let f1Concluidos = 0;
+    let f2Concluidos = 0;
+    let f3Concluidos = 0;
 
     discData.forEach(disc => {
       let discCertas = 0;
@@ -91,7 +99,13 @@ export default function HomeDashboardView() {
 
       // Avaliação de Temas Específicos (Tópicos)
       if (disc.topicos && Array.isArray(disc.topicos)) {
+        totalTopicos += disc.topicos.length;
         disc.topicos.forEach(topico => {
+           // Progresso Geral das Fases
+           if (topico.fase1?.conclusao) f1Concluidos++;
+           if (topico.fase2?.conclusao) f2Concluidos++;
+           if (Number(topico.fase3?.resolvidas) > 0) f3Concluidos++;
+
            let tCertas = 0;
            let tResolvidas = 0;
 
@@ -131,7 +145,11 @@ export default function HomeDashboardView() {
       resolvidas: totalResolvidas,
       desempenhoTotal: dsptotal,
       disciplinas: disciplinasCalculadas.sort((a,b) => b.resolvidas - a.resolvidas).slice(0, 5), // top 5
-      temasAtencao: temasAvaliacao.slice(0, 10) // top 10 piores
+      temasAtencao: temasAvaliacao.slice(0, 10), // top 10 piores
+      fase1Pct: totalTopicos > 0 ? (f1Concluidos / totalTopicos) * 100 : 0,
+      fase2Pct: totalTopicos > 0 ? (f2Concluidos / totalTopicos) * 100 : 0,
+      fase3Pct: totalTopicos > 0 ? (f3Concluidos / totalTopicos) * 100 : 0,
+      totalTopicos
     });
     // 3. Carregar Recados (simpl_messages)
     const rawMessages = localStorage.getItem('simpl_messages');
@@ -223,6 +241,72 @@ export default function HomeDashboardView() {
           </div>
         </div>
       )}
+
+      {/* Progress Bars for Phases */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card className="bg-zinc-900 border-indigo-500/20 p-5 shadow-xl rounded-3xl relative group overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
+           <div className="relative z-10">
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                   <h3 className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-1 flex items-center gap-2">
+                     Fase 1: Teoria e Base
+                   </h3>
+                   <p className="text-xl font-black text-zinc-100">{stats.fase1Pct.toFixed(1)}%</p>
+                </div>
+                <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-tighter">Conclusão Teórica</div>
+              </div>
+              <div className="w-full bg-zinc-950 rounded-full h-2 shadow-inner overflow-hidden">
+                <div 
+                   className="h-full bg-indigo-500 transition-all duration-1000 ease-out fill-mode-forwards" 
+                   style={{ width: `${stats.fase1Pct}%` }}
+                ></div>
+              </div>
+           </div>
+        </Card>
+
+        <Card className="bg-zinc-900 border-amber-500/20 p-5 shadow-xl rounded-3xl relative group overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent pointer-events-none" />
+           <div className="relative z-10">
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                   <h3 className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-1 flex items-center gap-2">
+                     Fase 2: Aprofundamento
+                   </h3>
+                   <p className="text-xl font-black text-zinc-100">{stats.fase2Pct.toFixed(1)}%</p>
+                </div>
+                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-tighter">Maturação de Temas</div>
+              </div>
+              <div className="w-full bg-zinc-950 rounded-full h-2 shadow-inner overflow-hidden">
+                <div 
+                   className="h-full bg-amber-500 transition-all duration-1000 ease-out fill-mode-forwards" 
+                   style={{ width: `${stats.fase2Pct}%` }}
+                ></div>
+              </div>
+           </div>
+        </Card>
+
+        <Card className="bg-zinc-900 border-rose-500/20 p-5 shadow-xl rounded-3xl relative group overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent pointer-events-none" />
+           <div className="relative z-10">
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                   <h3 className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-1 flex items-center gap-2">
+                     Fase 3: Revisão Final
+                   </h3>
+                   <p className="text-xl font-black text-zinc-100">{stats.fase3Pct.toFixed(1)}%</p>
+                </div>
+                <div className="text-[10px] font-bold text-rose-400 uppercase tracking-tighter">Modo de Manutenção</div>
+              </div>
+              <div className="w-full bg-zinc-950 rounded-full h-2 shadow-inner overflow-hidden">
+                <div 
+                   className="h-full bg-rose-500 transition-all duration-1000 ease-out fill-mode-forwards" 
+                   style={{ width: `${stats.fase3Pct}%` }}
+                ></div>
+              </div>
+           </div>
+        </Card>
+      </div>
 
       {/* Top 3 KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
