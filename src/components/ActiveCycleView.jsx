@@ -109,17 +109,21 @@ export default function ActiveCycleView({ setActiveTab }) {
           <p className="text-zinc-400 text-sm font-medium mt-1">Visualize sua fila de estudos e histórico.</p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <Button 
-            disabled={!isUnlocked && !isMentor}
-            onClick={() => setActiveTab('create_cycle')} 
-            className={`${(!isUnlocked && !isMentor) ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-600 hover:bg-amber-500 text-amber-50'}`}
-          >
-            + Criar Novo Ciclo
-          </Button>
-          {!isUnlocked && !isMentor && (
-            <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-              <AlertTriangle size={10} /> Conclua {lastDiscName} no grid para liberar
-            </span>
+          {isMentor && (
+            <>
+              <Button 
+                disabled={!isUnlocked}
+                onClick={() => setActiveTab('create_cycle')} 
+                className={`${!isUnlocked ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-600 hover:bg-amber-500 text-amber-50'}`}
+              >
+                + Criar Novo Ciclo
+              </Button>
+              {!isUnlocked && (
+                <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  <AlertTriangle size={10} /> Conclua {lastDiscName} no grid para liberar
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -131,16 +135,18 @@ export default function ActiveCycleView({ setActiveTab }) {
               <BrainCircuit className="text-indigo-400" />
               Ciclo Em Andamento
             </h2>
-            <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
-              const confirmed = await confirm("Deseja realmente apagar o ciclo atual?", { variant: 'danger' });
-              if (confirmed) {
-                localStorage.removeItem('simpl_ciclo');
-                setActiveCycle(null);
-                await pushData('simpl_ciclo', null);
-              }
-            }}>
-              Apagar Ciclo Atual
-            </Button>
+            {isMentor && (
+              <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
+                const confirmed = await confirm("Deseja realmente apagar o ciclo atual?", { variant: 'danger' });
+                if (confirmed) {
+                  localStorage.removeItem('simpl_ciclo');
+                  setActiveCycle(null);
+                  await pushData('simpl_ciclo', null);
+                }
+              }}>
+                Apagar Ciclo Atual
+              </Button>
+            )}
           </div>
           <p className="text-zinc-400 text-sm mb-4">Esta é a sua fila de estudos. Ela guiará a ordem das disciplinas no cronômetro.</p>
           <div className={`${getGridClass(activeCycle.length)} gap-4 pb-4`}>
@@ -174,9 +180,15 @@ export default function ActiveCycleView({ setActiveTab }) {
           <BrainCircuit className="text-zinc-600 mb-4" size={48} />
           <h2 className="text-xl font-bold text-zinc-300 mb-2">Nenhum ciclo ativo</h2>
           <p className="text-zinc-500 mb-6">Você não possui uma fila de estudos no momento.</p>
-          <Button onClick={() => setActiveTab('create_cycle')} className="bg-indigo-600 hover:bg-indigo-500 text-white">
-            Criar Meu Primeiro Ciclo
-          </Button>
+          {isMentor ? (
+            <Button onClick={() => setActiveTab('create_cycle')} className="bg-indigo-600 hover:bg-indigo-500 text-white">
+              Criar Meu Primeiro Ciclo
+            </Button>
+          ) : (
+            <div className="px-6 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400 text-xs font-bold uppercase tracking-widest">
+              Aguarde seu mentor planejar seu próximo ciclo
+            </div>
+          )}
         </div>
       )}
 
@@ -189,18 +201,20 @@ export default function ActiveCycleView({ setActiveTab }) {
                   <BrainCircuit className="text-zinc-500" />
                   Ciclo Anterior {cycleIdx === 0 && "(Último)"}
                 </h2>
-                <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
-                  const confirmed = await confirm("Deseja realmente apagar este ciclo do histórico?", { variant: 'danger' });
-                  if (confirmed) {
-                    const newHistory = [...inactiveCycles];
-                    newHistory.splice(cycleIdx, 1);
-                    localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
-                    setInactiveCycles(newHistory);
-                    await pushData('simpl_ciclo_history', newHistory);
-                  }
-                }}>
-                  Excluir do Histórico
-                </Button>
+                {isMentor && (
+                  <Button variant="ghost" className="text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
+                    const confirmed = await confirm("Deseja realmente apagar este ciclo do histórico?", { variant: 'danger' });
+                    if (confirmed) {
+                      const newHistory = [...inactiveCycles];
+                      newHistory.splice(cycleIdx, 1);
+                      localStorage.setItem('simpl_ciclo_history', JSON.stringify(newHistory));
+                      setInactiveCycles(newHistory);
+                      await pushData('simpl_ciclo_history', newHistory);
+                    }
+                  }}>
+                    Excluir do Histórico
+                  </Button>
+                )}
               </div>
               <div className={`${getGridClass(Array.isArray(cycle) ? cycle.length : (cycle.blocks?.length || 0))} gap-4 pb-4`}>
                 {(Array.isArray(cycle) ? cycle : (cycle.blocks || [])).map((block, idx) => {
