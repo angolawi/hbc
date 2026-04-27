@@ -220,9 +220,18 @@ export default function TimerView() {
     const prevMins = savedHours ? parseInt(savedHours, 10) : 0;
     localStorage.setItem('simpl_horas_estudadas', (prevMins + sessionMinutes).toString());
 
+    // Daily Study Log
+    const today = new Date().toISOString().split('T')[0];
+    let dailyData = {};
+    if (rawDaily) {
+      try { dailyData = JSON.parse(rawDaily); } catch (e) {}
+    }
+    dailyData[today] = (dailyData[today] || 0) + sessionMinutes;
+    localStorage.setItem('simpl_daily_study_time', JSON.stringify(dailyData));
+    await pushData('simpl_daily_study_time', dailyData);
+
     // Motor Numérico 1 e 2 Acumulado (Tópico e Categoria Global)
     const storedDisc = JSON.parse(localStorage.getItem('simpl_edital') || '[]');
-    const today = new Date().toISOString().split('T')[0];
     const phaseKey = `fase${selectedPhase}`;
 
     const updatedDisc = storedDisc.map(d => {
@@ -249,6 +258,7 @@ export default function TimerView() {
                     ...curPStats,
                     certas: (Number(curPStats.certas) || 0) + Number(modalCertas),
                     resolvidas: (Number(curPStats.resolvidas) || 0) + Number(modalResolvidas),
+                    minutos: (Number(curPStats.minutos) || 0) + sessionMinutes,
                     inicio: curPStats.inicio || today,
                     conclusao: today
                   }

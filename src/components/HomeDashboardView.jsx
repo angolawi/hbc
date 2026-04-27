@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
-import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar } from 'lucide-react';
+import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame } from 'lucide-react';
 import { pushData } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
 import quotesData from '../assets/frases.json';
@@ -14,7 +14,16 @@ export default function HomeDashboardView() {
     resolvidas: 0,
     desempenhoTotal: 0,
     disciplinas: [],
-    temasAtencao: []
+    temasAtencao: [],
+    fase1Pct: 0,
+    fase2Pct: 0,
+    fase3Pct: 0,
+    fase1Mins: 0,
+    fase2Mins: 0,
+    fase3Mins: 0,
+    totalTopicos: 0,
+    dailyGoal: 0,
+    todayMins: 0
   });
   const [randomQuote, setRandomQuote] = useState("");
   const [messages, setMessages] = useState([]);
@@ -124,22 +133,70 @@ export default function HomeDashboardView() {
 
     const dsptotal = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
 
+    // Phase Progress Calculation
+    let totalAllTopicos = 0;
+    let concluidoF1 = 0;
+    let concluidoF2 = 0;
+    let concluidoF3 = 0;
+    let minsF1 = 0;
+    let minsF2 = 0;
+    let minsF3 = 0;
+
+    let allEdital = [];
+    try {
+      const rawEditalFull = localStorage.getItem('simpl_edital');
+      if (rawEditalFull) allEdital = JSON.parse(rawEditalFull);
+    } catch (e) {
+      console.error("Error parsing edital for progress calculation:", e);
+    }
+    if (!Array.isArray(allEdital)) allEdital = [];
+
+    allEdital.forEach(d => {
+      if (d.topicos) {
+        d.topicos.forEach(t => {
+          totalAllTopicos++;
+          if (t.fase1?.conclusao) concluidoF1++;
+          if (t.fase2?.conclusao) concluidoF2++;
+          if (t.fase3?.resolvidas > 0) concluidoF3++;
+          
+          minsF1 += Number(t.fase1?.minutos) || 0;
+          minsF2 += Number(t.fase2?.minutos) || 0;
+          minsF3 += Number(t.fase3?.minutos) || 0;
+        });
+      }
+    });
+
+    // 4. Carregar Meta Diária
+    const dailyGoalRaw = localStorage.getItem('simpl_daily_goal');
+    const dailyMinsLogRaw = localStorage.getItem('simpl_daily_study_time');
+    const todayStr = new Date().toISOString().split('T')[0];
+    let dailyMinsLog = {};
+    try {
+      if (dailyMinsLogRaw) dailyMinsLog = JSON.parse(dailyMinsLogRaw);
+    } catch (e) {}
+
+    const todayMinsValue = Number(dailyMinsLog[todayStr]) || 0;
+    const parsedDailyGoal = parseFloat(dailyGoalRaw);
+    const dailyGoalValue = isNaN(parsedDailyGoal) ? 0 : parsedDailyGoal;
+
     setStats({
       horasEstudadas: hrs,
       minutosEstudados: remMins,
       certas: totalCertas,
       resolvidas: totalResolvidas,
       desempenhoTotal: dsptotal,
-      disciplinas: disciplinasCalculadas.sort((a,b) => b.resolvidas - a.resolvidas).slice(0, 5), // top 5
-      temasAtencao: temasAvaliacao.slice(0, 10) // top 10 piores
+      disciplinas: disciplinasCalculadas.sort((a,b) => b.resolvidas - a.resolvidas).slice(0, 5),
+      temasAtencao: temasAvaliacao.slice(0, 10),
+      fase1Pct: totalAllTopicos > 0 ? (concluidoF1 / totalAllTopicos) * 100 : 0,
+      fase2Pct: totalAllTopicos > 0 ? (concluidoF2 / totalAllTopicos) * 100 : 0,
+      fase3Pct: totalAllTopicos > 0 ? (concluidoF3 / totalAllTopicos) * 100 : 0,
+      fase1Mins: minsF1,
+      fase2Mins: minsF2,
+      fase3Mins: minsF3,
+      totalTopicos: totalAllTopicos,
+      dailyGoal: dailyGoalValue,
+      todayMins: todayMinsValue
     });
-    // 3. Carregar Recados (simpl_messages)
-    const rawMessages = localStorage.getItem('simpl_messages');
-    if (rawMessages) {
-      try {
-        setMessages(JSON.parse(rawMessages));
-      } catch (e) {}
-    }
   }, []);
 
   const removeMessage = async (id) => {
@@ -150,8 +207,22 @@ export default function HomeDashboardView() {
       await pushData('simpl_messages', updated, user);
     }
   };
-
+  
   const erradas = stats.resolvidas - stats.certas;
+
+  // Daily Goal Logic
+  const dailyGoalMins = (stats.dailyGoal || 0) * 60;
+  const remainsMins = Math.max(0, dailyGoalMins - stats.todayMins);
+  const isGoalReached = stats.dailyGoal > 0 && stats.todayMins >= dailyGoalMins;
+  const overMins = Math.max(0, stats.todayMins - dailyGoalMins);
+  
+  const hRemains = Math.floor(remainsMins / 60);
+  const mRemains = remainsMins % 60;
+  
+  const hOver = Math.floor(overMins / 60);
+  const mOver = overMins % 60;
+  
+
 
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full">
@@ -163,6 +234,60 @@ export default function HomeDashboardView() {
           <p className="text-zinc-500 text-sm font-medium mt-1">Resumo geral das estátisticas de rendimento dos seus estudos.</p>
         </div>
       </header>
+
+      {/* Seu Compromisso de Hoje - Destaque Principal */}
+      {stats.dailyGoal > 0 && (
+          <Card className={`mb-8 p-8 border-2 transition-all relative overflow-hidden ${isGoalReached ? 'bg-emerald-600/10 border-emerald-500/50 shadow-[0_0_40px_rgba(16,185,129,0.15)]' : 'bg-zinc-900 border-indigo-500/40 shadow-2xl shadow-indigo-500/5'}`}>
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <Clock size={160} className={isGoalReached ? 'text-emerald-500' : 'text-indigo-500'} />
+            </div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+               <div className="text-center md:text-left flex-1">
+                  <div className="flex items-center gap-3 mb-4 justify-center md:justify-start">
+                     <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-sm ${isGoalReached ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white animate-pulse'}`}>
+                        {isGoalReached ? '✓ Compromisso Cumprido' : '⚡ Seu compromisso de hoje'}
+                     </div>
+                     <div className="h-4 w-[1px] bg-zinc-800" />
+                     <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Meta Acordada: {stats.dailyGoal.toFixed(1)}h</span>
+                  </div>
+                  
+                  <h2 className="text-3xl md:text-4xl font-black text-zinc-100 tracking-tighter leading-none mb-4">
+                     {isGoalReached 
+                        ? (overMins > 0 ? "Você é Imparável! Limite Superado." : "Objetivo Atingido. Missão Cumprida!") 
+                        : (stats.todayMins > 0 ? "Persista! A aprovação é feita de constância." : "Mantenha sua palavra. Inicie seus estudos.")
+                     }
+                  </h2>
+                  
+                  <p className="text-zinc-400 text-base max-w-xl font-medium leading-relaxed">
+                     {isGoalReached 
+                        ? `O planejado para hoje já está na conta. Todo minuto extra agora é vantagem competitiva sobre a concorrência.`
+                        : `Cada segundo dedicado agora é um passo a menos rumo à sua nomeação. Não pare até o contador zerar.`
+                     }
+                  </p>
+               </div>
+
+               <div className="flex flex-col items-center shrink-0 bg-zinc-950/40 p-8 rounded-3xl border border-zinc-800/50 backdrop-blur-sm min-w-[280px]">
+                  <div className={`text-6xl font-black tabular-nums tracking-tighter transition-colors ${isGoalReached ? 'text-emerald-400' : 'text-zinc-100'}`}>
+                     {isGoalReached 
+                        ? `+${hOver}h ${mOver}m`
+                        : `${hRemains}h ${mRemains}m`
+                     }
+                  </div>
+                  <div className={`text-[10px] font-black uppercase tracking-[0.3em] mt-3 ${isGoalReached ? 'text-emerald-500' : 'text-indigo-400 opacity-80'}`}>
+                     {isGoalReached ? 'Volume Extra (Bônus)' : 'Tempo Restante para a Meta'}
+                  </div>
+                  
+                  <div className="w-full mt-6 bg-zinc-900 h-2 rounded-full overflow-hidden shadow-inner border border-zinc-800/50">
+                     <div 
+                        className={`h-full transition-all duration-1000 ${isGoalReached ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]'}`} 
+                        style={{ width: `${Math.min(100, (stats.todayMins / dailyGoalMins) * 100)}%` }}
+                     />
+                  </div>
+               </div>
+            </div>
+          </Card>
+      )}
 
       {/* Mural da Realidade Widget */}
       <Card className={`mb-8 p-6 bg-gradient-to-br border-rose-900/30 overflow-hidden relative group transition-all hover:border-rose-500/30 ${isHardMode ? 'from-rose-950 to-zinc-950 border-rose-500' : 'from-zinc-900 to-zinc-950 border-rose-900/30'}`}>
@@ -224,22 +349,10 @@ export default function HomeDashboardView() {
         </div>
       )}
 
-      {/* Top 3 KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card className="bg-zinc-900 border-zinc-800/50 p-6 shadow-xl rounded-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Clock size={80} className="text-indigo-500" />
-          </div>
-          <div className="relative z-10">
-            <h3 className="text-zinc-400 font-bold text-xs uppercase tracking-widest mb-1 flex items-center gap-2">
-              <Clock size={16} className="text-indigo-400" /> Tempo de Estudo
-            </h3>
-            <div className="text-4xl font-black text-zinc-100 py-3">
-              {stats.horasEstudadas}<span className="text-xl text-zinc-500">h</span> {stats.minutosEstudados}<span className="text-xl text-zinc-500">m</span>
-            </div>
-            <p className="text-indigo-400 text-xs font-semibold uppercase tracking-wider">Total Acumulado</p>
-          </div>
-        </Card>
+
+
+      {/* Top 2 KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
 
         <Card className="bg-zinc-900 border-zinc-800/50 p-6 shadow-xl rounded-3xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -274,6 +387,60 @@ export default function HomeDashboardView() {
                 <div className="bg-rose-500 h-full" style={{ width: `${stats.resolvidas > 0 ? (erradas / stats.resolvidas)*100 : 0}%` }}></div>
              </div>
              <p className="text-center text-xs text-zinc-500 font-bold uppercase tracking-wider">Total Resolvidas: {stats.resolvidas}</p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        {/* Carga Horária por Fase */}
+        <Card className="bg-zinc-900 border-zinc-800 p-6 rounded-3xl">
+          <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2 mb-6">
+            <Clock className="text-indigo-500" size={20} />
+            Carga Horária por Fase (Agregado)
+          </h2>
+          <div className="space-y-4">
+            {[
+              { label: 'Fase 1 - Teoria', mins: stats.fase1Mins, color: 'bg-indigo-500', icon: <TrendingUp className="text-indigo-400" size={14}/> },
+              { label: 'Fase 2 - Revisão', mins: stats.fase2Mins, color: 'bg-amber-500', icon: <Zap className="text-amber-400" size={14}/> },
+              { label: 'Fase 3 - Questões', mins: stats.fase3Mins, color: 'bg-rose-500', icon: <Flame className="text-rose-400" size={14}/> }
+            ].map((f, i) => {
+              const totalMins = (stats.fase1Mins + stats.fase2Mins + stats.fase3Mins) || 1;
+              const pct = (f.mins / totalMins) * 100;
+              return (
+                <div key={i}>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-2">
+                      {f.icon}
+                      <span className="text-sm font-bold text-zinc-300">{f.label}</span>
+                    </div>
+                    <span className="text-sm font-black text-zinc-100">{Math.floor(f.mins / 60)}h {f.mins % 60}m</span>
+                  </div>
+                  <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden">
+                    <div className={`${f.color} h-full transition-all duration-1000`} style={{ width: `${pct}%` }}></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Carga Horária Total Agregada */}
+        <Card className="bg-gradient-to-br from-indigo-900/20 to-zinc-900 border-indigo-500/30 p-8 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group">
+          <div className="absolute -right-10 -bottom-10 opacity-5 group-hover:rotate-12 transition-all duration-700">
+             <Clock size={250} className="text-indigo-500" />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-zinc-400 font-black text-xs uppercase tracking-[0.2em] mb-4">Carga Horária Acumulada</h3>
+            <div className="text-6xl font-black text-zinc-100 mb-2 tabular-nums">
+              {Math.floor((stats.fase1Mins + stats.fase2Mins + stats.fase3Mins) / 60)}<span className="text-2xl text-indigo-500 ml-1">h</span>
+            </div>
+            <div className="text-2xl font-black text-zinc-400 mb-6 tabular-nums">
+              {(stats.fase1Mins + stats.fase2Mins + stats.fase3Mins) % 60}<span className="text-sm text-zinc-500 ml-1">minutos</span>
+            </div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
+               <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+               <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Sincronizado com seu Edital</span>
+            </div>
           </div>
         </Card>
       </div>
