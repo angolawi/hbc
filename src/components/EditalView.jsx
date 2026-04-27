@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
-import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, ShieldCheck } from 'lucide-react';
+import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, ShieldCheck, History, MoveRight, CheckSquare, AlertTriangle, ArrowRight } from 'lucide-react';
 import { pushData, pullAllData } from '../utils/dataSync';
 import { supabase } from '../utils/supabase';
 
@@ -13,6 +13,10 @@ const blankMetrics = () => ({
   fase2: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
   fase3: { certas: '', resolvidas: '' }
 });
+
+const normalize = (t) => t?.toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+  .replace(/[^a-z0-9]/g, '') || ''; // remove non-alphanumeric
 
 export default function EditalView() {
   const { alert, confirm } = useNotification();
@@ -31,6 +35,12 @@ export default function EditalView() {
   const [templateName, setTemplateName] = useState('');
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+
+  // Migration States
+  const [showMigrationPreview, setShowMigrationPreview] = useState(false);
+  const [migrationDiff, setMigrationDiff] = useState(null);
+  const [pendingTemplateData, setPendingTemplateData] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -153,13 +163,116 @@ export default function EditalView() {
       return alert("Este template parece estar vazio ou corrompido.", "error");
     }
 
-    const confirmed = await confirm(`Isso substituirá todo o edital atual deste aluno por este template (${templateData.length} disciplinas). Continuar?`);
-    if (confirmed) {
-      // Usa a função de storage para garantir que vá para o Supabase do aluno
-      await saveToStorage(templateData);
-      alert("Template aplicado e sincronizado com sucesso!", "success");
-      setShowTemplates(false);
-    }
+    // Calcular o Diff antes de mostrar
+    const diff = calculateMigrationDiff(disciplines, templateData);
+    setMigrationDiff(diff);
+    setPendingTemplateData(templateData);
+    setShowMigrationPreview(true);
+  };
+
+  const calculateMigrationDiff = (current, template) => {
+    const addedSubjects = [];
+    const updatedSubjects = [];
+    const archivedSubjects = [];
+
+    // Subjects in template
+    template.forEach(tDisc => {
+      const existingDisc = current.find(d => normalize(d.nome) === normalize(tDisc.nome));
+      if (!existingDisc) {
+        addedSubjects.push(tDisc.nome);
+      } else {
+        const addedTopics = [];
+        const maintainedTopics = [];
+        const archivedTopics = [];
+
+        tDisc.topicos.forEach(tTop => {
+          const existingTop = existingDisc.topicos.find(et => 
+            et.id === tTop.id || normalize(et.texto) === normalize(tTop.texto)
+          );
+          if (existingTop) maintainedTopics.push(tTop.texto);
+          else addedTopics.push(tTop.texto);
+        });
+
+        existingDisc.topicos.forEach(et => {
+          if (et.isArchived) return;
+          const stillExists = tDisc.topicos.find(tTop => 
+            tTop.id === et.id || normalize(tTop.texto) === normalize(et.texto)
+          );
+          if (!stillExists) archivedTopics.push(et.texto);
+        });
+
+        if (addedTopics.length > 0 || archivedTopics.length > 0) {
+          updatedSubjects.push({ 
+            nome: tDisc.nome, 
+            added: addedTopics, 
+            archived: archivedTopics,
+            maintained: maintainedTopics.length
+          });
+        }
+      }
+    });
+
+    // Subjects in current but not in template
+    current.forEach(d => {
+      if (d.isArchived) return;
+      const stillExists = template.find(t => normalize(t.nome) === normalize(d.nome));
+      if (!stillExists) archivedSubjects.push(d.nome);
+    });
+
+    return { addedSubjects, updatedSubjects, archivedSubjects };
+  };
+
+  const executeMigration = async () => {
+    if (!pendingTemplateData) return;
+
+    // A lógica de merge real
+    const mergedData = pendingTemplateData.map(tDisc => {
+      const existingDisc = disciplines.find(d => normalize(d.nome) === normalize(tDisc.nome));
+      
+      if (!existingDisc) return { ...tDisc, id: Date.now().toString() + Math.random() };
+
+      const mergedTopicos = tDisc.topicos.map(tTop => {
+        const existingTop = existingDisc.topicos.find(et => 
+          et.id === tTop.id || normalize(et.texto) === normalize(tTop.texto)
+        );
+        if (existingTop) {
+          return { 
+            ...tTop, 
+            id: existingTop.id, // Preserve ID to keep local associations
+            fase1: existingTop.fase1, 
+            fase2: existingTop.fase2, 
+            fase3: existingTop.fase3 
+          };
+        }
+        return { ...tTop, id: Date.now().toString() + Math.random() };
+      });
+
+      // Se havia tópicos no edital do aluno que NÃO estão no template, eles devem ser ARQUIVADOS 
+      // e mantidos dentro dessa disciplina (para que fiquem juntos)
+      const legacyTopicos = existingDisc.topicos
+        .filter(et => !tDisc.topicos.find(tt => tt.id === et.id || normalize(tt.texto) === normalize(et.texto)))
+        .map(et => ({ ...et, isArchived: true }));
+
+      return { 
+        ...tDisc, 
+        id: existingDisc.id,
+        topicos: [...mergedTopicos, ...legacyTopicos] 
+      };
+    });
+
+    // Se havia matérias inteiras que NÃO estão no template, arquivar elas também
+    const legacySubjects = disciplines
+      .filter(d => !pendingTemplateData.find(t => normalize(t.nome) === normalize(d.nome)))
+      .map(d => ({ ...d, isArchived: true }));
+
+    const finalData = [...mergedData, ...legacySubjects];
+
+    await saveToStorage(finalData);
+    alert("Migração inteligente concluída com sucesso! Progresso preservado.", "success");
+    setShowMigrationPreview(false);
+    setShowTemplates(false);
+    setMigrationDiff(null);
+    setPendingTemplateData(null);
   };
 
   const deleteTemplate = async (tid) => {
@@ -688,7 +801,22 @@ export default function EditalView() {
                 <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima ou adicione manualmente.</p>
               </div>
             ) : (
-              <div className="space-y-12">
+              <>
+              <div className="flex justify-end mb-4">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div 
+                  onClick={() => setShowArchived(!showArchived)}
+                  className={`w-10 h-5 rounded-full transition-all duration-300 relative ${showArchived ? 'bg-indigo-600' : 'bg-zinc-800'}`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-300 ${showArchived ? 'left-5.5' : 'left-0.5'}`} />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                  {showArchived ? 'Ocultar Arquivados' : 'Mostrar Arquivados'}
+                </span>
+              </label>
+            </div>
+
+            <div className="space-y-12">
                 {/* Disciplinas no Ciclo Ativo */}
                 {disciplines.some(d => activeCycleDiscs.includes(d.id)) && (
                   <div className="space-y-6">
@@ -714,6 +842,7 @@ export default function EditalView() {
                             onUpdateTopicMetrics={(tid, ph, f, v) => updateTopicMetrics(disc.id, tid, ph, f, v)}
                             onEditTopicoText={(tid, txt) => editTopicoText(disc.id, tid, txt)}
                             onEditName={(newName) => editDisciplineName(disc.id, newName)}
+                            showArchived={showArchived}
                           />
                         ))}
                     </div>
@@ -744,11 +873,13 @@ export default function EditalView() {
                           onUpdateTopicMetrics={(tid, ph, f, v) => updateTopicMetrics(disc.id, tid, ph, f, v)}
                           onEditTopicoText={(tid, txt) => editTopicoText(disc.id, tid, txt)}
                           onEditName={(newName) => editDisciplineName(disc.id, newName)}
+                          showArchived={showArchived}
                         />
                       ))}
                   </div>
                 </div>
               </div>
+              </>
             )}
 
             {/* SAVE TEMPLATE BUTTON AT THE END */}
@@ -779,14 +910,122 @@ export default function EditalView() {
                 </div>
               </Card>
             )}
-          </div>
+      </div>
         )}
       </div>
+
+      {/* Migration Preview Modal */}
+      {showMigrationPreview && migrationDiff && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-sm animate-in fade-in duration-300">
+          <Card className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-zinc-900 border-indigo-500/30 shadow-2xl">
+            <header className="p-6 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <History className="text-indigo-400" /> Prévia da Migração Inteligente
+                </h2>
+                <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Comparando Template com Edital do Aluno</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowMigrationPreview(false)} className="text-zinc-500 hover:text-rose-500">
+                FECHAR
+              </Button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Novas Matérias</span>
+                  <span className="text-2xl font-black text-white">{migrationDiff.addedSubjects.length}</span>
+                </div>
+                <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl">
+                  <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-1">Matérias Atualizadas</span>
+                  <span className="text-2xl font-black text-white">{migrationDiff.updatedSubjects.length}</span>
+                </div>
+                <div className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-2xl">
+                  <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block mb-1">Matérias Arquivadas</span>
+                  <span className="text-2xl font-black text-white">{migrationDiff.archivedSubjects.length}</span>
+                </div>
+              </div>
+
+              {/* Detailed Changes */}
+              <div className="space-y-6">
+                {migrationDiff.updatedSubjects.map(sub => (
+                  <div key={sub.nome} className="bg-zinc-950/50 border border-zinc-800 rounded-2xl overflow-hidden">
+                    <div className="p-4 bg-zinc-900/50 border-b border-zinc-800 flex justify-between items-center">
+                      <h4 className="text-sm font-bold text-zinc-200">{sub.nome}</h4>
+                      <span className="text-[9px] bg-zinc-800 text-zinc-500 font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                        {sub.maintained} tópicos mantidos (com progresso)
+                      </span>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      {sub.added.length > 0 && (
+                        <div>
+                          <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Plus size={10} /> Novos Tópicos (+{sub.added.length})
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                             {sub.added.map(t => <span key={t} className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded">{t}</span>)}
+                          </div>
+                        </div>
+                      )}
+                      {sub.archived.length > 0 && (
+                        <div>
+                          <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <History size={10} /> Tópicos p/ Arquivo (-{sub.archived.length})
+                          </span>
+                          <div className="flex flex-wrap gap-2 opacity-60">
+                             {sub.archived.map(t => <span key={t} className="text-[10px] bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2 py-0.5 rounded">{t}</span>)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {migrationDiff.addedSubjects.length > 0 && (
+                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+                    <h4 className="text-xs font-black text-emerald-500 uppercase tracking-widest mb-3">Novas Matérias Completas</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {migrationDiff.addedSubjects.map(s => <span key={s} className="bg-emerald-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg shadow-lg shadow-emerald-900/20">{s}</span>)}
+                    </div>
+                  </div>
+                )}
+
+                {migrationDiff.archivedSubjects.length > 0 && (
+                  <div className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-2xl">
+                    <h4 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-3">Matérias a serem Arquivadas</h4>
+                    <div className="flex flex-wrap gap-2 opacity-70">
+                      {migrationDiff.archivedSubjects.map(s => <span key={s} className="bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold text-[10px] px-3 py-1 rounded-lg">{s}</span>)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <footer className="p-8 bg-zinc-950 flex flex-col gap-4">
+              <div className="flex items-center gap-3 bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20">
+                <ShieldCheck className="text-indigo-400 shrink-0" size={24} />
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  <strong>Nota sobre Progresso:</strong> Todos os tópicos marcados como "Mantidos" carregarão automaticamente sua pontuação de acertos e datas de estudo. Os itens removidos não serão deletados, ficando acessíveis como "Arquivados" para fins estatísticos.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setShowMigrationPreview(false)} className="flex-1 border-zinc-800 text-zinc-500 h-14 font-bold">
+                  CANCELAR
+                </Button>
+                <Button onClick={executeMigration} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white h-14 font-black tracking-widest uppercase">
+                  CONFIRMAR E ATUALIZAR EDITAL
+                </Button>
+              </div>
+            </footer>
+          </Card>
+        </div>
+      )}
     </section>
   );
 }
 
-function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
+function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName, showArchived }) {
   const [bulkText, setBulkText] = useState('');
   const [isListCollapsed, setIsListCollapsed] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -832,7 +1071,8 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
               className="flex items-center gap-2 group/title cursor-pointer"
               onClick={() => setIsListCollapsed(!isListCollapsed)}
             >
-              <h3 className="text-2xl font-black text-zinc-100">
+              <h3 className={`text-2xl font-black ${discipline.isArchived ? 'text-zinc-600 italic' : 'text-zinc-100'}`}>
+                {discipline.isArchived && <span className="text-[10px] bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full mr-2 align-middle not-italic">ARQUIVADA</span>}
                 {isEditingName ? (
                   <input
                     type="text"
@@ -949,7 +1189,9 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
 
           {discipline.topicos.length > 0 ? (
             <div className="space-y-3 mt-4">
-              {discipline.topicos.map(topico => (
+              {discipline.topicos
+                .filter(t => showArchived || !t.isArchived)
+                .map(topico => (
                 <TopicAccordion
                   key={topico.id}
                   topico={topico}
@@ -1015,9 +1257,10 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>
         <div
-          className="flex-1 text-sm text-zinc-200 flex items-center gap-2"
+          className={`flex-1 text-sm ${topico.isArchived ? 'text-zinc-500 italic' : 'text-zinc-200'} flex items-center gap-2`}
           style={{ paddingLeft: topico.level ? `${topico.level * 1.25}rem` : '0' }}
         >
+          {topico.isArchived && <History size={14} className="text-rose-500/50" />}
           {topico.level > 0 && <span className="text-zinc-600">↳</span>}
           {isEditing ? (
             <input

@@ -240,7 +240,7 @@ export default function WeeklyStatsView() {
                       <td className="px-4 py-2 font-bold text-zinc-400 text-[10px] tracking-widest uppercase border-r-4 border-zinc-800 sticky left-0 bg-zinc-800">{catName}</td>
                       {weeks.map(w => <td colSpan="3" key={`space-${w.id}`} className="border-r border-zinc-800 h-8"></td>)}
                     </tr>
-                    {discs.map(d => (
+                    {discs.filter(d => !d.isArchived).map(d => (
                       <tr key={d.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
                         <td className="px-4 py-3 text-zinc-300 font-medium border-r-4 border-zinc-800 sticky left-0 bg-zinc-900 z-10 truncate">{d.nome}</td>
                         {weeks.map(w => {

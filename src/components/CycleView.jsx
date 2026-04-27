@@ -279,7 +279,7 @@ export default function CycleView({ setActiveTab }) {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {disciplines.map(d => {
+                {disciplines.filter(d => !d.isArchived).map(d => {
                     const isSelected = !!selectedDiscs[d.id];
                     return (
                     <div 

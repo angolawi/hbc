@@ -104,7 +104,7 @@ export default function HomeDashboardView() {
 
            if (tResolvidas > 0) {
              const tPct = (tCertas / tResolvidas) * 100;
-             if (tPct < 70) {
+             if (tPct < 70 && !topico.isArchived && !disc.isArchived) {
                temasAvaliacao.push({
                  id: topico.id,
                  disciplina: disc.nome,
