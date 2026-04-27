@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../utils/supabase';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Card } from './ui/Card';
@@ -23,14 +24,39 @@ export default function LoginView() {
 
     setLoading(true);
     try {
-      const { error } = isLogin
-        ? await login(email, password)
-        : await signUp(email, password);
+      if (isLogin) {
+        const { error } = await login(email, password);
+        if (error) throw error;
+      } else {
+        // 1. Check for invitation
+        const { data: inv, error: invErr } = await supabase
+          .from('invitations')
+          .select('*')
+          .eq('email', email.toLowerCase().trim())
+          .maybeSingle();
 
-      if (error) throw error;
+        if (invErr || !inv) {
+          throw new Error('Acesso restrito: Você precisa de um convite vinculado a este e-mail para criar uma conta.');
+        }
 
-      if (!isLogin) {
-        alert('Conta criada! Verifique seu e-mail para confirmar (se habilitado) ou faça login.', 'success');
+        // 2. Perform Signup
+        const { data: authData, error: signUpError } = await signUp(email, password);
+        if (signUpError) throw signUpError;
+
+        // 3. Auto-link to mentor and finalize
+        if (authData?.user) {
+          // Add mentorship record
+          await supabase.from('mentorships').insert([{
+            mentor_id: inv.invited_by,
+            student_id: authData.user.id
+          }]);
+          
+          // Use the invitation info if we want to delete it or keep it as 'accepted'
+          // For now, let's just delete it to keep things clean
+          await supabase.from('invitations').delete().eq('id', inv.id);
+        }
+
+        alert('Conta criada com sucesso! Você já pode fazer login.', 'success');
         setIsLogin(true);
       }
     } catch (e) {

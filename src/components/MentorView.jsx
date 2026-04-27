@@ -2,20 +2,38 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { Users, UserPlus, Search, ExternalLink, BarChart3, Clock, BrainCircuit, Trash2, Trophy, BookOpen } from 'lucide-react';
+import { 
+  Users, 
+  UserPlus, 
+  Search, 
+  ExternalLink, 
+  BarChart3, 
+  Clock, 
+  BrainCircuit, 
+  Trash2, 
+  Trophy, 
+  BookOpen,
+  MessageSquare, 
+  Send, 
+  Calendar, 
+  Mail, 
+  XCircle 
+} from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { smartSync, pushData } from '../utils/dataSync';
 import { useNotification } from '../context/NotificationContext';
-import { MessageSquare, Send, Calendar } from 'lucide-react';
 import MentorPerformanceView from './MentorPerformanceView';
 
 export default function MentorView() {
   const { user, setSelectedMentee } = useAuth();
   const [mentees, setMentees] = useState([]);
+  const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [newMenteeId, setNewMenteeId] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
   const [menteeStats, setMenteeStats] = useState({});
   const [activeMuralId, setActiveMuralId] = useState(null);
   const [muralText, setMuralText] = useState('');
@@ -23,6 +41,7 @@ export default function MentorView() {
 
   useEffect(() => {
     fetchMentees();
+    fetchInvitations();
   }, []);
 
   const fetchMentees = async () => {
@@ -60,6 +79,24 @@ export default function MentorView() {
       console.error("Error fetching mentees:", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInvitations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('invitations')
+        .select('*')
+        .eq('invited_by', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (error.code !== '42P01') console.error("Error fetching invitations:", error);
+        return;
+      }
+      setInvitations(data || []);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -106,6 +143,46 @@ export default function MentorView() {
     } catch (e) {
       console.error(e);
       alert(e.message || "Erro ao adicionar mentorado.");
+    }
+  };
+
+  const sendInvitation = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail || !inviteEmail.includes('@')) {
+      alert("Por favor, insira um e-mail válido.");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('invitations')
+        .insert([{ email: inviteEmail.toLowerCase().trim(), invited_by: user.id }]);
+
+      if (error) {
+        if (error.code === '23505') throw new Error("Este e-mail já possui um convite pendente.");
+        throw error;
+      }
+
+      setInviteEmail('');
+      setShowInviteForm(false);
+      fetchInvitations();
+      alert("Convite enviado com sucesso!", "success");
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Erro ao enviar convite.");
+    }
+  };
+
+  const revokeInvitation = async (id) => {
+    if (!confirm("Revogar este convite? O usuário não poderá mais criar conta com este e-mail.")) return;
+    try {
+      const { error } = await supabase.from('invitations').delete().eq('id', id);
+      if (error) throw error;
+      fetchInvitations();
+      alert("Convite revogado.", "info");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao revogar convite.");
     }
   };
 
@@ -167,14 +244,54 @@ export default function MentorView() {
             Monitorar Rendimento
           </Button>
           <Button 
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => {
+              setShowInviteForm(!showInviteForm);
+              setShowAddForm(false);
+            }}
+            variant="outline"
+            className={`border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 flex items-center gap-2 px-6 h-12 rounded-2xl transition-all ${showInviteForm ? 'bg-indigo-500/10 ring-1 ring-indigo-500' : ''}`}
+          >
+            <Mail size={18} />
+            Convidar por E-mail
+          </Button>
+          <Button 
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+              setShowInviteForm(false);
+            }}
             className="bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 px-6 h-12 rounded-2xl shadow-lg shadow-indigo-900/20"
           >
             <UserPlus size={18} />
-            Vincular Aluno
+            Vincular por ID
           </Button>
         </div>
       </header>
+
+      {showInviteForm && (
+        <Card className="p-8 mb-8 bg-zinc-900 border-indigo-500/30 shadow-2xl animate-in slide-in-from-top-4">
+          <form onSubmit={sendInvitation} className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1 mb-2 block">E-mail do Aluno</label>
+              <div className="relative">
+                <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input 
+                  type="email"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="aluno@exemplo.com"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-4 text-sm text-white focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" className="bg-indigo-600 text-white hover:bg-indigo-500 h-14 px-8 rounded-2xl font-bold flex items-center gap-2">
+                <Send size={16} />
+                Enviar Convite
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       {showAddForm && (
         <Card className="p-8 mb-8 bg-zinc-900 border-indigo-500/30 shadow-2xl animate-in slide-in-from-top-4">
@@ -187,7 +304,7 @@ export default function MentorView() {
                   value={newMenteeId}
                   onChange={e => setNewMenteeId(e.target.value)}
                   placeholder="Ex: 550e8400-e29b-41d4-a716-446655440000"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-4 text-sm text-white"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-4 text-sm text-white focus:border-emerald-500 outline-none transition-all"
                 />
               </div>
             </div>
@@ -299,6 +416,41 @@ export default function MentorView() {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* Convites Pendentes */}
+      {invitations.length > 0 && (
+        <div className="mt-16">
+          <div className="flex items-center gap-3 mb-6">
+            <Mail className="text-zinc-500" size={20} />
+            <h2 className="text-lg font-bold text-white uppercase tracking-widest text-[11px]">Convites Pendentes</h2>
+            <div className="h-px flex-1 bg-zinc-800/50" />
+            <span className="text-[10px] font-black text-zinc-600 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800">{invitations.length} AGUARDANDO</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {invitations.map(inv => (
+              <Card key={inv.id} className="p-4 bg-zinc-950/50 border-zinc-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-indigo-400 transition-colors">
+                    <Mail size={18} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-zinc-300">{inv.email}</span>
+                    <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Enviado em {new Date(inv.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => revokeInvitation(inv.id)}
+                  className="text-zinc-700 hover:text-rose-500 transition-colors p-2"
+                  title="Revogar Convite"
+                >
+                  <XCircle size={18} />
+                </button>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </section>
