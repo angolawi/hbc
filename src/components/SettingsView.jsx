@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, AlertTriangle, CloudUpload, CloudDownload, Clock, CheckCircle2, XCircle, User, Fingerprint } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, CloudUpload, CloudDownload, Clock, CheckCircle2, XCircle, User, Fingerprint, Check, RotateCcw } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
-import { pushAllLocalData, pullAllData, getSyncHistory } from '../utils/dataSync';
+import { pushData, pushAllLocalData, pullAllData, getSyncHistory } from '../utils/dataSync';
 import { supabase } from '../utils/supabase';
 export default function SettingsView() {
   const { alert, confirm } = useNotification();
@@ -15,6 +15,7 @@ export default function SettingsView() {
   const [lastName, setLastName] = useState('');
   const [targetContest, setTargetContest] = useState('');
   const [hardMode, setHardMode] = useState(false);
+  const [dailyGoal, setDailyGoal] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -31,6 +32,9 @@ export default function SettingsView() {
 
     const localHardMode = localStorage.getItem('simpl_hard_mode') === 'true';
     setHardMode(localHardMode);
+
+    const localDailyGoal = localStorage.getItem('simpl_daily_goal') || '';
+    setDailyGoal(localDailyGoal);
   }, [user]);
 
   const handleUpdateProfile = async () => {
@@ -50,9 +54,28 @@ export default function SettingsView() {
       await pushData('simpl_hard_mode', hardMode, user);
     }
 
+    // Save Daily Goal
+    const currentDailyGoal = localStorage.getItem('simpl_daily_goal') || '';
+    if (dailyGoal !== currentDailyGoal) {
+      localStorage.setItem('simpl_daily_goal', dailyGoal);
+      await pushData('simpl_daily_goal', dailyGoal, user);
+    }
+
     setSaving(false);
     if (error) alert("Erro ao atualizar perfil.", "error");
-    else alert("Perfil atualizado com sucesso!", "success");
+    else alert("Dados de perfil salvos!", "success");
+  };
+
+  const handleSaveDailyGoal = async () => {
+    if (dailyGoal === '') return alert("Defina um valor para a meta.");
+    
+    setSaving(true);
+    localStorage.setItem('simpl_daily_goal', dailyGoal);
+    if (user) {
+      await pushData('simpl_daily_goal', dailyGoal, user);
+    }
+    setSaving(false);
+    alert(`Meta diária de ${dailyGoal}h salva com sucesso!`, "success");
   };
 
   useEffect(() => {
@@ -227,6 +250,41 @@ export default function SettingsView() {
                 >
                   <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 ${hardMode ? 'left-7' : 'left-1'}`} />
                 </button>
+              </div>
+
+              <div className="mt-6 flex flex-col md:flex-row items-center justify-between p-6 bg-indigo-500/5 rounded-2xl border border-indigo-500/20 gap-4">
+                <div className="flex-1 pr-4">
+                  <h4 className="text-zinc-100 font-bold mb-1 flex items-center gap-2">
+                    <Clock size={16} className="text-indigo-400" />
+                    Comprometimento Diário (Horas)
+                  </h4>
+                  <p className="text-zinc-500 text-[10px] leading-relaxed max-w-sm">
+                    Defina quantas horas você se compromete a estudar por dia. Isso ativará o countdown motivador no Dashboard.
+                  </p>
+                </div>
+                
+                <div className="w-full md:w-auto flex items-center gap-2">
+                   <div className="w-24">
+                      <Input 
+                         type="number" 
+                         min="0" 
+                         step="0.5" 
+                         placeholder="Ex: 4" 
+                         className="bg-zinc-950 text-center font-black text-indigo-400"
+                         value={dailyGoal}
+                         onChange={(e) => setDailyGoal(e.target.value)}
+                         onKeyDown={(e) => e.key === 'Enter' && handleSaveDailyGoal()}
+                      />
+                   </div>
+                   <Button 
+                      onClick={handleSaveDailyGoal}
+                      disabled={saving}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white h-full px-4"
+                      size="sm"
+                   >
+                      <Check size={18} />
+                   </Button>
+                </div>
               </div>
             </div>
           </Card>

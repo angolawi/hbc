@@ -9,7 +9,9 @@ export const SYNC_KEYS = [
   'simpl_cycle_instances',
   'simpl_grid_progress',
   'simpl_messages',
-  'simpl_hard_mode'
+  'simpl_hard_mode',
+  'simpl_daily_goal',
+  'simpl_daily_study_time'
 ];
 
 const SYNC_HISTORY_KEY = 'simpl_sync_history';
