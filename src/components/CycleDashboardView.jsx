@@ -21,6 +21,7 @@ export default function CycleDashboardView() {
     const [lockedColor, setLockedColor] = useState(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [importTarget, setImportTarget] = useState(null);
+    const [isCycleCompleted, setIsCycleCompleted] = useState(false);
 
     // Carrega dados corretos: do aluno via Supabase (mentor) ou localStorage (aluno)
     useEffect(() => {
@@ -172,10 +173,21 @@ export default function CycleDashboardView() {
             });
 
             if (currentMarkings.length > 0) {
-                // Verifica se a última matéria já foi marcada na instância atual
+                // Identifica a última matéria de estudo REAL (excluindo linhas de revisão)
+                const studySubjects = subjects.filter(s => !s.toUpperCase().includes("REVISÃO"));
+                const lastStudySubject = studySubjects[studySubjects.length - 1];
+                
+                if (!lastStudySubject) {
+                    setLockedColor(null);
+                    setIsCycleCompleted(false);
+                    return;
+                }
+
                 const isFinished = currentMarkings.some(([key]) => {
                     const parts = key.split('_');
-                    return parts[1] === lastSubject;
+                    if (parts.length < 3) return false;
+                    const discName = parts.slice(1, -1).join('_');
+                    return discName.toUpperCase() === lastStudySubject.toUpperCase();
                 });
                 
                 if (!isFinished) {
@@ -183,11 +195,14 @@ export default function CycleDashboardView() {
                     const colorFound = currentMarkings[0][1];
                     setLockedColor(colorFound);
                     setActiveBrush(colorFound);
+                    setIsCycleCompleted(false);
                 } else {
                     setLockedColor(null);
+                    setIsCycleCompleted(true);
                 }
             } else {
                 setLockedColor(null);
+                setIsCycleCompleted(false);
             }
         }
     }, [progress, instances, isReadOnly]);
@@ -548,6 +563,11 @@ export default function CycleDashboardView() {
                             {lockedColor ? 'Cor da Iteração:' : 'Selecionar Cor:'}
                         </span>
                         {lockedColor && <Lock size={12} className="text-amber-500 animate-pulse" />}
+                        {isCycleCompleted && !lockedColor && (
+                            <span className="text-[10px] text-emerald-500 font-bold ml-2 animate-bounce">
+                                ✓ Ciclo Concluído! Nova cor liberada.
+                            </span>
+                        )}
                     </div>
                     {[
                         { id: 1, color: "bg-orange-500", ring: "ring-orange-500" },
