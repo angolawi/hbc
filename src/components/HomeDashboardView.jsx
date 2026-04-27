@@ -3,6 +3,7 @@ import { Card } from './ui/Card';
 import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar } from 'lucide-react';
 import { pushData } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
+import { StudyCalendar } from './ui/StudyCalendar';
 import quotesData from '../assets/frases.json';
 import dreadboardData from '../assets/dreadboard.json';
 
@@ -14,7 +15,8 @@ export default function HomeDashboardView() {
     resolvidas: 0,
     desempenhoTotal: 0,
     disciplinas: [],
-    temasAtencao: []
+    temasAtencao: [],
+    datasEstudadas: []
   });
   const [randomQuote, setRandomQuote] = useState("");
   const [messages, setMessages] = useState([]);
@@ -124,6 +126,28 @@ export default function HomeDashboardView() {
 
     const dsptotal = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
 
+    // 2.5 Extrair datas estudadas do simpl_grid_progress
+    const rawGridProg = localStorage.getItem('simpl_grid_progress');
+    let studyDates = [];
+    if (rawGridProg) {
+      try {
+        const gridProg = JSON.parse(rawGridProg);
+        const uniqueDates = new Set();
+        Object.keys(gridProg).forEach(key => {
+          const parts = key.split('_');
+          if (parts.length >= 3) {
+            const dateStr = parts[parts.length - 1]; // YYYY-MM-DD
+            if (gridProg[key] !== 0 && gridProg[key] !== '0') {
+               uniqueDates.add(dateStr);
+            }
+          }
+        });
+        studyDates = Array.from(uniqueDates);
+      } catch (e) {
+        console.error("Erro ao ler progresso do grid no dashboard:", e);
+      }
+    }
+
     setStats({
       horasEstudadas: hrs,
       minutosEstudados: remMins,
@@ -131,7 +155,8 @@ export default function HomeDashboardView() {
       resolvidas: totalResolvidas,
       desempenhoTotal: dsptotal,
       disciplinas: disciplinasCalculadas.sort((a,b) => b.resolvidas - a.resolvidas).slice(0, 5), // top 5
-      temasAtencao: temasAvaliacao.slice(0, 10) // top 10 piores
+      temasAtencao: temasAvaliacao.slice(0, 10), // top 10 piores
+      datasEstudadas: studyDates
     });
     // 3. Carregar Recados (simpl_messages)
     const rawMessages = localStorage.getItem('simpl_messages');
@@ -164,29 +189,31 @@ export default function HomeDashboardView() {
         </div>
       </header>
 
-      {/* Mural da Realidade Widget */}
-      <Card className={`mb-8 p-6 bg-gradient-to-br border-rose-900/30 overflow-hidden relative group transition-all hover:border-rose-500/30 ${isHardMode ? 'from-rose-950 to-zinc-950 border-rose-500' : 'from-zinc-900 to-zinc-950 border-rose-900/30'}`}>
-        <div className={`absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity ${isHardMode ? 'opacity-10' : ''}`}>
-          {isHardMode ? <AlertTriangle size={150} className="text-rose-500 -rotate-12" /> : <Quote size={120} className="text-rose-500 rotate-12" />}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 items-stretch">
+        <div className="h-full">
+           <StudyCalendar studiedDates={stats.datasEstudadas} />
         </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-3">
-             <div className={`w-2 h-2 rounded-full animate-pulse ${isHardMode ? 'bg-rose-500 shadow-[0_0_10px_#f43f5e]' : 'bg-rose-500'}`}></div>
-             <h2 className={`text-[10px] font-black uppercase tracking-[0.2em] ${isHardMode ? 'text-rose-500 animate-pulse' : 'text-rose-500/80'}`}>
-                {isHardMode ? 'Modo Hardcore Ativado: A Realidade sem Filtro' : 'Mural da Realidade'}
-             </h2>
-          </div>
-          <p className={`text-xl md:text-2xl font-bold tracking-tight leading-tight italic ${isHardMode ? 'text-zinc-100 uppercase not-italic font-black' : 'text-zinc-200'}`}>
-            {isHardMode ? randomQuote : `"${randomQuote || "Carregando a realidade..."}"`}
-          </p>
-          {isHardMode && (
-            <div className="mt-4 flex items-center gap-2">
-                <span className="text-[8px] bg-rose-500 text-white font-black px-1 py-0.5 rounded uppercase tracking-widest">Hardcore Mode Active</span>
-                <span className="text-[10px] text-zinc-500 font-bold italic">Sem desculpas hoje.</span>
+
+        <div className="h-full">
+          {/* Mural da Realidade Widget */}
+          <Card className={`h-full p-6 bg-gradient-to-br border-rose-900/30 overflow-hidden relative group transition-all hover:border-rose-500/30 ${isHardMode ? 'from-rose-950 to-zinc-950 border-rose-500' : 'from-zinc-900 to-zinc-950 border-rose-900/30'}`}>
+            <div className={`absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity ${isHardMode ? 'opacity-10' : ''}`}>
+              {isHardMode ? <AlertTriangle size={150} className="text-rose-500 -rotate-12" /> : <Quote size={120} className="text-rose-500 rotate-12" />}
             </div>
-          )}
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                 <div className={`w-2 h-2 rounded-full animate-pulse ${isHardMode ? 'bg-rose-500 shadow-[0_0_10px_#f43f5e]' : 'bg-rose-500'}`}></div>
+                 <h2 className={`text-[10px] font-black uppercase tracking-[0.2em] ${isHardMode ? 'text-rose-500 animate-pulse' : 'text-rose-500/80'}`}>
+                    {isHardMode ? 'Modo Hardcore Ativado' : 'Mural da Realidade'}
+                 </h2>
+              </div>
+              <p className={`text-lg md:text-xl font-bold tracking-tight leading-tight italic ${isHardMode ? 'text-zinc-100 uppercase not-italic font-black' : 'text-zinc-200'}`}>
+                {isHardMode ? randomQuote : `"${randomQuote || "Carregando a realidade..."}"`}
+              </p>
+            </div>
+          </Card>
         </div>
-      </Card>
+      </div>
 
       {/* Mural de Recados do Mentor */}
       {messages.length > 0 && (
@@ -277,6 +304,7 @@ export default function HomeDashboardView() {
           </div>
         </Card>
       </div>
+
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         
