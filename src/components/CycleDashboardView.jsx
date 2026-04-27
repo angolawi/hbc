@@ -183,18 +183,38 @@ export default function CycleDashboardView() {
                     return;
                 }
 
-                const isFinished = currentMarkings.some(([key]) => {
-                    const parts = key.split('_');
-                    if (parts.length < 3) return false;
-                    const discName = parts.slice(1, -1).join('_');
-                    return discName.toUpperCase() === lastStudySubject.toUpperCase();
+                // Agrupar marcações por cor para detectar qual iteração está em andamento
+                const markingsByColor = {};
+                currentMarkings.forEach(([key, color]) => {
+                    if (color === 'X' || color === 0) return; 
+                    if (!markingsByColor[color]) markingsByColor[color] = [];
+                    markingsByColor[color].push(key);
                 });
+
+                // Uma cor está "em andamento" se foi usada mas a última matéria ainda não foi marcada com ela nesta instância
+                let activeIterationColor = null;
+
+                // Percorre as cores para ver se alguma ainda não finalizou o ciclo
+                // Ordenar por ID da cor ou timestamp poderia ser feito, mas aqui pegamos a primeira que achar "aberta"
+                for (const color of Object.keys(markingsByColor)) {
+                    const keys = markingsByColor[color];
+                    const isColorFinished = keys.some(key => {
+                        const parts = key.split('_');
+                        if (parts.length < 3) return false;
+                        const discName = parts.slice(1, -1).join('_');
+                        return discName.toUpperCase() === lastStudySubject.toUpperCase();
+                    });
+
+                    if (!isColorFinished) {
+                        activeIterationColor = color;
+                        break;
+                    }
+                }
                 
-                if (!isFinished) {
-                    // Lock na cor da primeira marcação encontrada
-                    const colorFound = currentMarkings[0][1];
-                    setLockedColor(colorFound);
-                    setActiveBrush(colorFound);
+                if (activeIterationColor) {
+                    const colorNum = Number(activeIterationColor);
+                    setLockedColor(colorNum);
+                    setActiveBrush(colorNum);
                     setIsCycleCompleted(false);
                 } else {
                     setLockedColor(null);
