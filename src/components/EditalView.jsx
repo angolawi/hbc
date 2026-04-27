@@ -30,6 +30,7 @@ export default function EditalView() {
   const [templates, setTemplates] = useState([]);
   const [templateName, setTemplateName] = useState('');
   const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -113,10 +114,20 @@ export default function EditalView() {
         alert("Template de Edital salvo com sucesso!", "success");
         setTemplateName('');
         setDisciplines([]); // Limpa a tela
+        setIsCreatingNew(false);
         localStorage.removeItem('simpl_edital');
         fetchTemplates();
       }
     }
+  };
+
+  const startNewTemplate = () => {
+    setDisciplines([]);
+    setTemplateName('');
+    setEditingTemplateId(null);
+    setIsCreatingNew(true);
+    localStorage.removeItem('simpl_edital');
+    alert("Iniciando novo template em branco. Use a Extração Inteligente ou adicione matérias manualmente.", "success");
   };
 
   const loadTemplate = (template) => {
@@ -127,6 +138,7 @@ export default function EditalView() {
     setDisciplines(template.data);
     setTemplateName(template.name);
     setEditingTemplateId(template.id);
+    setIsCreatingNew(false);
 
     // Força sincronização com storage para evitar perda em refresh
     localStorage.setItem('simpl_edital', JSON.stringify(template.data));
@@ -582,14 +594,26 @@ export default function EditalView() {
         </Card>
       )}
 
-      {/* Smart Extract Edital Completo - SOMENTE PARA MENTORES */}
-      {isMentor && (
+      {/* Smart Extract Edital Completo - SOMENTE PARA MENTORES - Only if editing/creating */}
+      {isMentor && (selectedMentee || editingTemplateId || isCreatingNew) && (
         <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-xl rounded-2xl mb-8 relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
           <div className="relative">
-            <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2 mb-2">
-              <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+               <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                 <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
+               </h2>
+               {!selectedMentee && (
+                 <Button 
+                   variant="ghost" 
+                   size="sm" 
+                   onClick={() => { setIsCreatingNew(false); setEditingTemplateId(null); }}
+                   className="text-zinc-500 hover:text-zinc-300"
+                 >
+                   Cancelar e Voltar para Biblioteca
+                 </Button>
+               )}
+            </div>
             <p className="text-sm text-zinc-400 mb-6 max-w-4xl">
               Cole integralmente o texto do bloco de "Conteúdo Programático" do seu edital. O sistema identificará automaticamente as disciplinas (escritas em <strong>CAIXA ALTA</strong>) e segmentará a hierarquia das sub-matérias baseado em prefixos numéricos (Ex: 1, 1.1, 1.2.1).
             </p>
@@ -612,27 +636,99 @@ export default function EditalView() {
         </Card>
       )}
 
+      {/* Main Content Area */}
       <div className="animate-in slide-in-from-top-4 fade-in duration-300">
-        {/* Lista de Disciplinas */}
-        <div className="space-y-6 max-w-5xl mx-auto">
-          {disciplines.length === 0 ? (
-            <div className="text-center p-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50 border-dashed">
-              <GraduationCap className="mx-auto text-zinc-600 mb-4" size={48} />
-              <h3 className="text-lg font-bold text-zinc-300">Sua biblioteca de matérias está vazia</h3>
-              <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima para cadastrar o edital automaticamente.</p>
-            </div>
-          ) : (
-            <div className="space-y-12">
-              {/* Disciplinas no Ciclo Ativo */}
-              {disciplines.some(d => activeCycleDiscs.includes(d.id)) && (
+        
+        {/* If Mentor is not editing anything, show Library Landing */}
+        {isMentor && !selectedMentee && !editingTemplateId && !isCreatingNew ? (
+          <div className="max-w-5xl mx-auto space-y-8">
+            <Card className="p-12 bg-zinc-950 border-dashed border-zinc-800 text-center flex flex-col items-center gap-6 rounded-3xl">
+               <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-400">
+                  <FileText size={32} />
+               </div>
+               <div>
+                  <h2 className="text-2xl font-black text-zinc-100 mb-2">Biblioteca de Templates Master</h2>
+                  <p className="text-zinc-500 max-w-md mx-auto">Gerencie seus editais padrão ou crie um novo do zero para atribuir aos seus alunos.</p>
+               </div>
+               <div className="flex gap-4">
+                  <Button onClick={startNewTemplate} className="bg-white text-zinc-950 font-black px-8 h-12 hover:bg-zinc-200">
+                    CRIAR NOVO TEMPLATE
+                  </Button>
+               </div>
+            </Card>
+
+            {templates.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {templates.map(t => (
+                  <div key={t.id} className="p-6 bg-zinc-900 border border-zinc-800 rounded-2xl flex justify-between items-center group hover:border-indigo-500/50 transition-all">
+                    <div>
+                      <span className="font-bold text-zinc-100 block mb-1">{t.name}</span>
+                      <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">{t.data.length} disciplinas cadastradas</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={() => loadTemplate(t)} variant="ghost" size="sm" className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:bg-indigo-400/10 border border-indigo-500/30">
+                        CARREGAR EDITAL
+                      </Button>
+                      <button onClick={() => deleteTemplate(t.id, t.name)} className="text-zinc-700 hover:text-rose-500 p-2">
+                        <Trash size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* List of Disciplinas (Regular editing view) */
+          <div className="space-y-6 max-w-5xl mx-auto">
+            {disciplines.length === 0 ? (
+              <div className="text-center p-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50 border-dashed">
+                <GraduationCap className="mx-auto text-zinc-600 mb-4" size={48} />
+                <h3 className="text-lg font-bold text-zinc-300">Aguardando inserção de matérias</h3>
+                <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima ou adicione manualmente.</p>
+              </div>
+            ) : (
+              <div className="space-y-12">
+                {/* Disciplinas no Ciclo Ativo */}
+                {disciplines.some(d => activeCycleDiscs.includes(d.id)) && (
+                  <div className="space-y-6">
+                    <h2 className="text-xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3 ml-2 drop-shadow-sm">
+                      <BrainCircuit className="text-indigo-500" size={24} />
+                      No ciclo atual ({disciplines.filter(d => activeCycleDiscs.includes(d.id)).length})
+                    </h2>
+                    <div className="grid grid-cols-1 gap-4">
+                      {disciplines
+                        .filter(d => activeCycleDiscs.includes(d.id))
+                        .map(disc => (
+                          <DisciplineBlock
+                            key={disc.id}
+                            discipline={disc}
+                            isMentor={isMentor}
+                            selectedMentee={selectedMentee}
+                            onRemove={() => removeDiscipline(disc.id)}
+                            onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
+                            onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
+                            onChangeTag={(tag) => updateDisciplineTag(disc.id, tag)}
+                            onAddBulk={(txt) => addTopicosEmMassa(disc.id, txt)}
+                            onRemoveTopico={(tid) => removeTopico(disc.id, tid)}
+                            onUpdateTopicMetrics={(tid, ph, f, v) => updateTopicMetrics(disc.id, tid, ph, f, v)}
+                            onEditTopicoText={(tid, txt) => editTopicoText(disc.id, tid, txt)}
+                            onEditName={(newName) => editDisciplineName(disc.id, newName)}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Demais Disciplinas */}
                 <div className="space-y-6">
-                  <h2 className="text-xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3 ml-2 drop-shadow-sm">
-                    <BrainCircuit className="text-indigo-500" size={24} />
-                    No ciclo atual ({disciplines.filter(d => activeCycleDiscs.includes(d.id)).length})
+                  <h2 className="text-xl font-black text-zinc-600 uppercase tracking-widest flex items-center gap-3 ml-2 italic">
+                    <GraduationCap className="text-zinc-700" size={24} />
+                    {(selectedMentee || !isMentor) ? `Fomentando o Edital (${disciplines.filter(d => !activeCycleDiscs.includes(d.id)).length})` : `Disciplinas do Edital (${disciplines.length})`}
                   </h2>
                   <div className="grid grid-cols-1 gap-4">
                     {disciplines
-                      .filter(d => activeCycleDiscs.includes(d.id))
+                      .filter(d => !activeCycleDiscs.includes(d.id))
                       .map(disc => (
                         <DisciplineBlock
                           key={disc.id}
@@ -652,90 +748,39 @@ export default function EditalView() {
                       ))}
                   </div>
                 </div>
-              )}
-
-              {/* Demais Disciplinas */}
-              <div className="space-y-6">
-                <h2 className="text-xl font-black text-zinc-600 uppercase tracking-widest flex items-center gap-3 ml-2 italic">
-                  <GraduationCap className="text-zinc-700" size={24} />
-                  {(selectedMentee || !isMentor) ? `Fomentando o Edital (${disciplines.filter(d => !activeCycleDiscs.includes(d.id)).length})` : `Disciplinas do Edital (${disciplines.length})`}
-                </h2>
-                <div className="grid grid-cols-1 gap-4">
-                  {disciplines
-                    .filter(d => !activeCycleDiscs.includes(d.id))
-                    .map(disc => (
-                      <DisciplineBlock
-                        key={disc.id}
-                        discipline={disc}
-                        isMentor={isMentor}
-                        selectedMentee={selectedMentee}
-                        onRemove={() => removeDiscipline(disc.id)}
-                        onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
-                        onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
-                        onChangeTag={(tag) => updateDisciplineTag(disc.id, tag)}
-                        onAddBulk={(txt) => addTopicosEmMassa(disc.id, txt)}
-                        onRemoveTopico={(tid) => removeTopico(disc.id, tid)}
-                        onUpdateTopicMetrics={(tid, ph, f, v) => updateTopicMetrics(disc.id, tid, ph, f, v)}
-                        onEditTopicoText={(tid, txt) => editTopicoText(disc.id, tid, txt)}
-                        onEditName={(newName) => editDisciplineName(disc.id, newName)}
-                      />
-                    ))}
-                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* SAVE TEMPLATE BUTTON AT THE END */}
-          {isMentor && !selectedMentee && (
-            <Card className={`p-8 bg-gradient-to-br border-indigo-500/30 rounded-2xl mt-12 shadow-2xl ${editingTemplateId ? 'from-amber-500/10 to-zinc-900 border-amber-500/50' : 'from-indigo-500/10 to-zinc-900'}`}>
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <ShieldCheck className={editingTemplateId ? 'text-amber-400' : 'text-indigo-400'} />
-                {editingTemplateId ? 'Editando Template' : 'Finalizar e Salvar como Template'}
-              </h3>
-              <p className="text-sm text-zinc-400 mb-6">
-                {editingTemplateId ? `Você está editando o template "${templateName}". As alterações substituirão o arquivo original.` : 'Salve esta configuração completa para poder atribuí-la rapidamente aos seus alunos depois.'}
-              </p>
-              <div className="flex flex-col md:flex-row gap-4">
-                <Input
-                  placeholder="Nome do Concurso (Ex: Auditor SEFAZ 2024)"
-                  value={templateName}
-                  onChange={e => setTemplateName(e.target.value)}
-                  className="bg-zinc-950 flex-1 h-14"
-                />
-                <Button onClick={saveTemplate} className={`${editingTemplateId ? 'bg-amber-500 hover:bg-amber-400' : 'bg-white hover:bg-zinc-200'} text-zinc-950 px-10 h-14 font-black uppercase tracking-widest`}>
-                  {editingTemplateId ? 'Salvar Alterações' : 'Salvar Novo Template'}
-                </Button>
-                {editingTemplateId && (
-                  <Button onClick={() => { setEditingTemplateId(null); setTemplateName(''); }} variant="outline" className="h-14 px-6 text-zinc-500 border-zinc-800">
-                    CANCELAR EDIÇÃO
+            {/* SAVE TEMPLATE BUTTON AT THE END */}
+            {isMentor && !selectedMentee && (
+              <Card className={`p-8 bg-gradient-to-br border-indigo-500/30 rounded-2xl mt-12 shadow-2xl ${editingTemplateId ? 'from-amber-500/10 to-zinc-900 border-amber-500/50' : 'from-indigo-500/10 to-zinc-900'}`}>
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <ShieldCheck className={editingTemplateId ? 'text-amber-400' : 'text-indigo-400'} />
+                  {editingTemplateId ? 'Editando Template' : 'Finalizar e Salvar como Template'}
+                </h3>
+                <p className="text-sm text-zinc-400 mb-6">
+                  {editingTemplateId ? `Você está editando o template "${templateName}". As alterações substituirão o arquivo original.` : 'Salve esta configuração completa para poder atribuí-la rapidamente aos seus alunos depois.'}
+                </p>
+                <div className="flex flex-col md:flex-row gap-4">
+                  <Input
+                    placeholder="Nome do Concurso (Ex: Auditor SEFAZ 2024)"
+                    value={templateName}
+                    onChange={e => setTemplateName(e.target.value)}
+                    className="bg-zinc-950 flex-1 h-14"
+                  />
+                  <Button onClick={saveTemplate} className={`${editingTemplateId ? 'bg-amber-500 hover:bg-amber-400' : 'bg-white hover:bg-zinc-200'} text-zinc-950 px-10 h-14 font-black uppercase tracking-widest`}>
+                    {editingTemplateId ? 'Salvar Alterações' : 'Salvar Novo Template'}
                   </Button>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Template List (Management View) */}
-          {isMentor && !selectedMentee && templates.length > 0 && (
-            <div className="mt-12">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4 px-2">Meus Templates Salvos</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {templates.map(t => (
-                  <div key={t.id} className={`p-4 bg-zinc-900 border rounded-xl flex justify-between items-center group ${editingTemplateId === t.id ? 'border-amber-500/50 bg-amber-500/5' : 'border-zinc-800'}`}>
-                    <span className="font-bold text-zinc-300 text-sm">{t.name}</span>
-                    <div className="flex gap-2">
-                      <Button onClick={() => loadTemplate(t)} variant="ghost" size="sm" className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:bg-indigo-400/10">
-                        CARREGAR / EDITAR
-                      </Button>
-                      <button onClick={() => deleteTemplate(t.id)} className="text-zinc-700 hover:text-rose-500 p-2 opacity-0 group-hover:opacity-100 transition-all">
-                        <Trash size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+                  {(editingTemplateId || isCreatingNew) && (
+                    <Button onClick={() => { setEditingTemplateId(null); setIsCreatingNew(false); setTemplateName(''); }} variant="outline" className="h-14 px-6 text-zinc-500 border-zinc-800">
+                      CANCELAR
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

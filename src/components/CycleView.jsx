@@ -91,7 +91,7 @@ export default function CycleView({ setActiveTab }) {
     }
     const missingTag = selectedList.find(d => !d.tag);
     if (missingTag) {
-      alert(`Selecione o perfil cognitivo para: ${missingTag.nome}`, "error");
+      alert(`A disciplina "${missingTag.nome}" não possui perfil cognitivo definido. Por favor, configure-o no Edital antes de gerar o ciclo.`, "error");
       return;
     }
 
@@ -329,8 +329,8 @@ export default function CycleView({ setActiveTab }) {
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
                 <div>
-                    <h2 className="text-lg font-bold text-zinc-100">2. Categorização e Carga Horária</h2>
-                    <p className="text-zinc-500 text-sm hidden sm:block">Defina o nível cognitivo e o tempo total de cada matéria no ciclo.</p>
+                    <h2 className="text-lg font-bold text-zinc-100">2. Carga Horária do Ciclo</h2>
+                    <p className="text-zinc-500 text-sm hidden sm:block">Defina o tempo total de estudo para cada matéria nesta rodada.</p>
                 </div>
             </div>
             
@@ -341,20 +341,19 @@ export default function CycleView({ setActiveTab }) {
                         <span className="font-semibold text-zinc-200">{d.nome}</span>
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <select 
-                            className="bg-zinc-900 border border-zinc-700 text-sm text-zinc-300 rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none w-full sm:w-auto"
-                            value={d.tag}
-                            onChange={(e) => handleSelectDisc(d.id, 'tag', e.target.value)}
-                        >
-                            <option value="" disabled>Qual o perfil?</option>
-                            <option value="teorica">🟢 Teórica / Decoreba</option>
-                            <option value="calculo">🔴 Cálculo / Lógica</option>
-                            <option value="analitica">🟡 Prática / Analítica</option>
-                        </select>
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {d.tag ? (
+                            <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full border ${TAGS[d.tag]?.color || 'bg-zinc-800 text-zinc-500'}`}>
+                                {TAGS[d.tag]?.icon} {TAGS[d.tag]?.label}
+                            </span>
+                        ) : (
+                            <span className="text-[10px] font-bold px-3 py-1.5 rounded-full border bg-rose-500/10 text-rose-400 border-rose-500/30 flex items-center gap-1">
+                                <AlertCircle size={12} /> Sem Perfil (Defina no Edital)
+                            </span>
+                        )}
                         
                         <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3">
-                            <label className="text-xs text-zinc-400 whitespace-nowrap font-medium">Total:</label>
+                            <label className="text-xs text-zinc-400 whitespace-nowrap font-medium">Tempo:</label>
                             <select 
                                 className="bg-transparent text-sm text-zinc-300 py-2.5 outline-none w-full sm:w-auto min-w-[110px]"
                                 value={d.weight}
