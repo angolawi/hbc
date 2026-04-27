@@ -20,7 +20,7 @@ export default function CycleView({ setActiveTab }) {
   const [disciplines, setDisciplines] = useState([]);
   const [activeCycle, setActiveCycle] = useState(null);
   const [selectedDiscs, setSelectedDiscs] = useState({});
-  const [maxBlockTime, setMaxBlockTime] = useState(120); // default 2h
+  const [maxBlockTime, setMaxBlockTime] = useState(60); // default 1h
   const [loading, setLoading] = useState(false);
   
   const [generatedCycle, setGeneratedCycle] = useState([]);
@@ -77,7 +77,7 @@ export default function CycleView({ setActiveTab }) {
       const disc = disciplines.find(d => d.id === id);
       setSelectedDiscs(prev => ({
         ...prev,
-        [id]: { nome, id, tag: disc?.tag || '', weight: 120 } 
+        [id]: { nome, id, tag: disc?.tag || '', weight: 60 } 
       }));
     }
   };
