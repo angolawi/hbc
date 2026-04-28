@@ -190,7 +190,7 @@ export default function EditalView() {
       id: Date.now().toString(),
       nome: newDiscName.toUpperCase(),
       categoria: newDiscCat,
-      tag: newDiscTag,
+      tag: 'teorica',
       currentPhase: 1,
       topicos: []
     };
@@ -515,6 +515,7 @@ export default function EditalView() {
             id: Date.now().toString() + '-def',
             nome: 'CONHECIMENTOS DIVERSOS',
             categoria: 'Conhecimentos Gerais',
+            tag: 'teorica',
             currentPhase: 1,
             topicos: []
           };
