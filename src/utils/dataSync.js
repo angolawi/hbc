@@ -20,7 +20,7 @@ const logSyncEvent = (type, status, details = '') => {
   try {
     const history = JSON.parse(localStorage.getItem(SYNC_HISTORY_KEY) || '[]');
     const newEvent = {
-      id: Date.now(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
       type,
       status,
