@@ -301,8 +301,8 @@ export default function SettingsView() {
             {history.length === 0 ? (
               <p className="text-zinc-600 text-sm italic text-center py-4">Nenhum evento registrado ainda.</p>
             ) : (
-              history.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800/50">
+              history.map((event, idx) => (
+                <div key={event.id || idx} className="flex items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800/50">
                   <div className="flex items-center gap-4">
                     {event.status === 'success' ? (
                       <CheckCircle2 className="text-emerald-500 shrink-0" size={18} />

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
-import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame } from 'lucide-react';
+import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame, Crown, Medal, Users, Trophy } from 'lucide-react';
 import { pushData } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../utils/supabase';
 import quotesData from '../assets/frases.json';
 import dreadboardData from '../assets/dreadboard.json';
 
@@ -28,6 +29,8 @@ export default function HomeDashboardView() {
   const [randomQuote, setRandomQuote] = useState("");
   const [messages, setMessages] = useState([]);
   const [isHardMode, setIsHardMode] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -208,6 +211,57 @@ export default function HomeDashboardView() {
       todayMins: todayMinsValue
     });
   }, []);
+
+  // Competition & Leaderboard Logic
+  useEffect(() => {
+    if (!user || stats.totalTopicos === 0) return;
+
+    const syncAndFetchArena = async () => {
+      try {
+        // 1. Get current profile to know the contest
+        const { data: profile, error: pError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle(); 
+        
+        if (!profile) return;
+        setUserProfile(profile);
+
+        // 2. Update public stats in profile (Arena Sync)
+        const totalMins = (stats.fase1Mins + stats.fase2Mins + stats.fase3Mins);
+        await supabase.from('profiles').update({
+          study_minutes: totalMins,
+          avg_performance: stats.desempenhoTotal,
+          questions_solved: stats.resolvidas
+        }).eq('id', user.id);
+
+        // 3. Fetch competitors for the same contest
+        if (profile.target_contest) {
+          const { data: competitors } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, study_minutes, avg_performance, questions_solved')
+            .eq('target_contest', profile.target_contest)
+            .order('study_minutes', { ascending: false })
+            .limit(5);
+          
+          if (competitors) setLeaderboard(competitors);
+        }
+      } catch (e) {
+        console.error("Arena HBC Sync Error:", e);
+      }
+    };
+
+    const timer = setTimeout(syncAndFetchArena, 2000);
+    return () => clearTimeout(timer);
+  }, [user, stats.fase1Mins, stats.desempenhoTotal, stats.resolvidas, stats.totalTopicos]);
+
+  const maskName = (first, last) => {
+    if (!first) return "Guerreiro(a)";
+    const f = first.trim().charAt(0).toUpperCase();
+    const l = last && last.trim() ? last.trim().charAt(0).toUpperCase() : '';
+    return l ? `${f}. ${l}.` : `${f}.`;
+  };
 
   const removeMessage = async (id) => {
     const updated = messages.filter(m => m.id !== id);
@@ -454,6 +508,91 @@ export default function HomeDashboardView() {
           </div>
         </Card>
       </div>
+
+      {/* Arena HBC - Competição de Mentorados */}
+      {userProfile?.target_contest && leaderboard.length > 1 && (
+        <Card className="bg-zinc-900 border-indigo-500/30 shadow-2xl rounded-3xl p-8 mb-8 relative overflow-hidden group">
+          <div className="absolute -right-20 -top-20 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-1000 rotate-12">
+            <Trophy size={400} className="text-indigo-400" />
+          </div>
+          
+          <div className="relative z-10">
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="px-2 py-0.5 bg-indigo-500 text-[8px] font-black uppercase tracking-widest rounded text-white shadow-lg shadow-indigo-500/20">Arena HBC</div>
+                  <h2 className="text-xl font-black text-zinc-100 tracking-tight flex items-center gap-3">
+                    <Crown className="text-amber-500" size={24} /> 
+                    Ranking: {userProfile.target_contest}
+                  </h2>
+                </div>
+                <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">
+                  Compita com outros <Users size={12} className="inline mx-1" /> {leaderboard.length}+ alunos mascarados para sua segurança
+                </p>
+              </div>
+              
+              <div className="hidden md:block text-right">
+                <span className="text-[10px] font-black text-zinc-600 block uppercase tracking-tighter mb-1">Atualizado agora</span>
+                <div className="h-1 w-24 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-500 w-full animate-pulse opacity-50" />
+                </div>
+              </div>
+            </header>
+
+            <div className="space-y-3">
+              {leaderboard.map((comp, idx) => {
+                const isMe = comp.id === user.id;
+                const pos = idx + 1;
+                const hrs = Math.floor((comp.study_minutes || 0) / 60);
+                const rm = (comp.study_minutes || 0) % 60;
+                
+                return (
+                  <div 
+                    key={comp.id} 
+                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${
+                      isMe 
+                      ? 'bg-indigo-600/10 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-[1.02]' 
+                      : 'bg-zinc-950/40 border-zinc-800/50 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="w-10 h-10 shrink-0 flex items-center justify-center font-black text-lg italic text-zinc-500">
+                      {pos === 1 && <Medal className="text-amber-400" size={28} />}
+                      {pos === 2 && <Medal className="text-zinc-400" size={24} />}
+                      {pos === 3 && <Medal className="text-orange-400" size={22} />}
+                      {pos > 3 && `#${pos}`}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-black text-sm uppercase tracking-widest ${isMe ? 'text-indigo-400' : 'text-zinc-100'}`}>
+                          {maskName(comp.first_name, comp.last_name)}
+                        </span>
+                        {isMe && <span className="text-[8px] font-black bg-indigo-500 text-white px-1.5 py-0.5 rounded tracking-tighter">VOCÊ</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 opacity-60">
+                         <div className="flex items-center gap-1">
+                            <Clock size={10} />
+                            <span className="text-[10px] font-bold">{hrs}h {rm}m</span>
+                         </div>
+                         <div className="w-1 h-1 bg-zinc-700 rounded-full" />
+                         <div className="flex items-center gap-1">
+                            <Target size={10} />
+                            <span className="text-[10px] font-bold">{(comp.avg_performance || 0).toFixed(1)}%</span>
+                         </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                       <span className="text-[10px] font-black text-zinc-500 block uppercase tracking-widest">Questões</span>
+                       <span className="text-lg font-black text-zinc-200 tabular-nums">{comp.questions_solved || 0}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
 
