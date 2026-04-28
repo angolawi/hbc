@@ -222,9 +222,10 @@ export default function TimerView() {
 
     // Daily Study Log
     const today = new Date().toISOString().split('T')[0];
+    const rawDaily = localStorage.getItem('simpl_daily_study_time');
     let dailyData = {};
     if (rawDaily) {
-      try { dailyData = JSON.parse(rawDaily); } catch (e) {}
+      try { dailyData = typeof rawDaily === 'string' ? JSON.parse(rawDaily) : rawDaily; } catch (e) {}
     }
     dailyData[today] = (dailyData[today] || 0) + sessionMinutes;
     localStorage.setItem('simpl_daily_study_time', JSON.stringify(dailyData));

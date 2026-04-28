@@ -46,10 +46,23 @@ export default function MentorPerformanceView() {
         
         if (Array.isArray(edital)) {
           edital.forEach(d => {
-            Object.values(d.weeklyStats || {}).forEach(stat => {
-              totalCertas += Number(stat.certas) || 0;
-              totalResolvidas += Number(stat.resolvidas) || 0;
-            });
+            if (d.weeklyStats) {
+              Object.values(d.weeklyStats).forEach(stat => {
+                totalCertas += Number(stat.certas) || 0;
+                totalResolvidas += Number(stat.resolvidas) || 0;
+              });
+            }
+
+            if (d.topicos && Array.isArray(d.topicos)) {
+              d.topicos.forEach(topico => {
+                ['fase1', 'fase2', 'fase3'].forEach(fase => {
+                  if (topico[fase]) {
+                    totalCertas += Number(topico[fase].certas) || 0;
+                    totalResolvidas += Number(topico[fase].resolvidas) || 0;
+                  }
+                });
+              });
+            }
           });
         }
 

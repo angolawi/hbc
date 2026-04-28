@@ -7,6 +7,7 @@ import { Input, Textarea } from './ui/Input';
 import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, ShieldCheck } from 'lucide-react';
 import { pushData, pullAllData } from '../utils/dataSync';
 import { supabase } from '../utils/supabase';
+import EditalProgressImportModal from './modals/EditalProgressImportModal';
 
 const blankMetrics = () => ({
   fase1: { inicio: '', conclusao: '', certas: '', resolvidas: '' },
@@ -31,6 +32,7 @@ export default function EditalView() {
   const [templateName, setTemplateName] = useState('');
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [showProgressImportModal, setShowProgressImportModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -46,7 +48,6 @@ export default function EditalView() {
           const blocks = Array.isArray(savedCiclo) ? savedCiclo : (savedCiclo.blocks || []);
           setActiveCycleDiscs([...new Set(blocks.map(b => b.id))]);
         }
-
         setLoading(false);
       } else {
         const savedData = localStorage.getItem('simpl_edital');
@@ -175,12 +176,42 @@ export default function EditalView() {
 
   const saveToStorage = async (data) => {
     setDisciplines(data);
-    localStorage.setItem('simpl_edital', JSON.stringify(data));
+    localStorage.setItem('simpl_edital', typeof data === 'string' ? data : JSON.stringify(data));
 
-    // Se estiver editando um template global, NÃO salva no edital ativo/aluno 
-    // para evitar misturar rascunhos de template com o estudo real.
+    let totalCertas = 0;
+    let totalResolvidas = 0;
+
+    if (Array.isArray(data)) {
+      data.forEach(disc => {
+        if (disc.weeklyStats) {
+          Object.values(disc.weeklyStats).forEach(stat => {
+            totalCertas += Number(stat.certas) || 0;
+            totalResolvidas += Number(stat.resolvidas) || 0;
+          });
+        }
+        if (disc.topicos && Array.isArray(disc.topicos)) {
+          disc.topicos.forEach(topico => {
+            ['fase1', 'fase2', 'fase3'].forEach(fase => {
+              if (topico[fase]) {
+                totalCertas += Number(topico[fase].certas) || 0;
+                totalResolvidas += Number(topico[fase].resolvidas) || 0;
+              }
+            });
+          });
+        }
+      });
+    }
+
+    const statsObj = {
+      totalCertas,
+      totalResolvidas,
+      desempenhoTotal: totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0,
+      updatedAt: new Date().toISOString()
+    };
+
     if (user && !editingTemplateId) {
       await pushData('simpl_edital', data, user, selectedMentee?.id);
+      await pushData('simpl_global_stats', statsObj, user, selectedMentee?.id);
     }
   };
 
@@ -536,6 +567,67 @@ export default function EditalView() {
     alert(`Extração Concluída com sucesso! ${extractedDisciplines.length} disciplinas identificadas.`, 'success');
   };
 
+  const handleMergeProgress = (extractedTopics, targetDisciplineId) => {
+    const normalizeTopic = (str) => {
+       // Remove all accents, special chars and spaces
+       return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    };
+
+    let matchCount = 0;
+    
+    const updatedDisciplines = disciplines.map(disc => {
+      if (targetDisciplineId && disc.id !== targetDisciplineId) return disc;
+      let discChanged = false;
+      const newTopicos = disc.topicos.map(top => {
+        const normTop = normalizeTopic(top.texto);
+        
+        const match = extractedTopics.find(et => {
+           const normEt = normalizeTopic(et.originalText);
+           // Ensure it's a substantive match
+           if (normTop.length < 5 || normEt.length < 5) return false;
+           return normTop.includes(normEt) || normEt.includes(normTop);
+        });
+
+        if (match) {
+          matchCount++;
+          discChanged = true;
+          return {
+             ...top,
+             fase1: {
+               inicio: match.metrics.fase1.inicio || top.fase1?.inicio || '',
+               conclusao: match.metrics.fase1.conclusao || top.fase1?.conclusao || '',
+               certas: match.metrics.fase1.certas || top.fase1?.certas || '',
+               resolvidas: match.metrics.fase1.resolvidas || top.fase1?.resolvidas || ''
+             },
+             fase2: {
+               inicio: match.metrics.fase2.inicio || top.fase2?.inicio || '',
+               conclusao: match.metrics.fase2.conclusao || top.fase2?.conclusao || '',
+               certas: match.metrics.fase2.certas || top.fase2?.certas || '',
+               resolvidas: match.metrics.fase2.resolvidas || top.fase2?.resolvidas || ''
+             },
+             fase3: {
+               certas: match.metrics.fase3.certas || top.fase3?.certas || '',
+               resolvidas: match.metrics.fase3.resolvidas || top.fase3?.resolvidas || ''
+             }
+          };
+        }
+        return top;
+      });
+
+      if (discChanged) {
+        return { ...disc, topicos: newTopicos };
+      }
+      return disc;
+    });
+
+    if (matchCount > 0) {
+      saveToStorage(updatedDisciplines);
+      alert(`Legal! Foram mescladas métricas de ${matchCount} tópicos com sucesso.`, 'success');
+    } else {
+      alert(`Não encontramos tópicos compatíveis entre a planilha e o edital ativo.`, 'error');
+    }
+  };
+
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen p-4 md:p-8 w-full rounded-none">
       <header className="mb-8 flex justify-between items-center bg-zinc-900 p-6 rounded-2xl border border-zinc-800/80 shadow-lg">
@@ -546,6 +638,17 @@ export default function EditalView() {
           <p className="text-indigo-400 text-sm font-medium">
             {selectedMentee ? 'Configure e planeje as matérias para o seu aluno.' : 'Controle seu avanço descascando o edital tópico por tópico.'}
           </p>
+        </div>
+        <div className="flex gap-2">
+           {isMentor && selectedMentee && (
+             <Button
+               onClick={() => setShowProgressImportModal(true)}
+               variant="outline"
+               className="border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 hidden md:flex items-center gap-2"
+             >
+               <FileText size={16} /> Importar Progresso (Planilha)
+             </Button>
+           )}
         </div>
       </header>
 
@@ -783,6 +886,13 @@ export default function EditalView() {
           </div>
         )}
       </div>
+
+      <EditalProgressImportModal 
+        isOpen={showProgressImportModal} 
+        onClose={() => setShowProgressImportModal(false)}
+        disciplines={disciplines}
+        onImport={handleMergeProgress}
+      />
     </section>
   );
 }
@@ -955,6 +1065,7 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
                   key={topico.id}
                   topico={topico}
                   selectedMentee={selectedMentee}
+                  isMentor={isMentor}
                   onRemove={() => onRemoveTopico(topico.id)}
                   onUpdate={(phase, field, val) => onUpdateTopicMetrics(topico.id, phase, field, val)}
                   onEditText={(newText) => onEditTopicoText(topico.id, newText)}
@@ -973,7 +1084,7 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
   );
 }
 
-function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee }) {
+function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee, isMentor }) {
   const [expanded, setExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(topico.texto);
@@ -998,6 +1109,12 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
   const p1 = calcPercentage(topico.fase1?.certas, topico.fase1?.resolvidas);
   const p2 = calcPercentage(topico.fase2?.certas, topico.fase2?.resolvidas);
   const p3 = calcPercentage(topico.fase3?.certas, topico.fase3?.resolvidas);
+  
+  const hasData = (topico.fase1?.conclusao) || 
+                  (Number(topico.fase1?.resolvidas) > 0) ||
+                  (topico.fase2?.conclusao) || 
+                  (Number(topico.fase2?.resolvidas) > 0) ||
+                  (Number(topico.fase3?.resolvidas) > 0);
 
   const getPillColor = (pct) => {
     if (pct === null) return 'bg-zinc-800 text-zinc-500';
@@ -1007,7 +1124,7 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
   };
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800/50 rounded-xl overflow-hidden transition-all">
+    <div className={`rounded-xl overflow-hidden transition-all ${hasData ? 'bg-zinc-900/60 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.02)]' : 'bg-zinc-900 border border-zinc-800/50'}`}>
       <div
         className="p-4 flex gap-4 items-center cursor-pointer hover:bg-zinc-800/30 group"
         onClick={() => setExpanded(!expanded)}
@@ -1032,14 +1149,21 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="font-medium" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
-              {topico.texto}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
+                {topico.texto}
+              </span>
+              {hasData && (
+                <span className="bg-emerald-500/10 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded border border-emerald-500/20 font-black tracking-wider uppercase">
+                  ✓ Estudado
+                </span>
+              )}
+            </div>
           )}
         </div>
 
         {/* Quick Indicators that show when collapsed */}
-        {!expanded && !selectedMentee && (
+        {!expanded && (!selectedMentee || isMentor) && (
           <div className="hidden md:flex gap-2 text-[10px] font-bold">
             <span className={`px-2 py-1 rounded-full ${getPillColor(p1)}`} title="Fase 1">F1: {p1 !== null ? `${p1}%` : '-'}</span>
             <span className={`px-2 py-1 rounded-full ${getPillColor(p2)}`} title="Fase 2">F2: {p2 !== null ? `${p2}%` : '-'}</span>
@@ -1069,7 +1193,7 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
         </div>
       </div>
 
-      {expanded && !selectedMentee && (
+      {expanded && (!selectedMentee || isMentor) && (
         <div className="p-4 bg-zinc-950/80 border-t border-zinc-800/50 animate-in slide-in-from-top-2 duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
