@@ -56,8 +56,12 @@ export default function LoginView() {
           await supabase.from('invitations').delete().eq('id', inv.id);
         }
 
-        alert('Conta criada com sucesso! Você já pode fazer login.', 'success');
-        setIsLogin(true);
+        if (authData?.session) {
+          alert('Conta criada com sucesso! Entrando...', 'success');
+        } else {
+          alert('Conta criada com sucesso! Verifique seu e-mail para confirmar e fazer login.', 'success');
+          setIsLogin(true);
+        }
       }
     } catch (e) {
       alert(e.message || 'Erro ao autenticar.', 'error');
