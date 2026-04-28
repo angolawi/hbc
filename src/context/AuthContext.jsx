@@ -148,7 +148,13 @@ export const AuthProvider = ({ children }) => {
     },
     selectedMentee,
     setSelectedMentee,
-    signUp: (email, password) => supabase.auth.signUp({ email, password }),
+    signUp: (email, password) => supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        emailRedirectTo: window.location.origin
+      }
+    }),
     login: async (email, password) => {
       const resp = await supabase.auth.signInWithPassword({ email, password });
       if (resp.data?.session) {
