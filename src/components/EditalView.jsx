@@ -888,11 +888,13 @@ export default function EditalView() {
       </div>
 
       <EditalProgressImportModal 
+        key={showProgressImportModal}
         isOpen={showProgressImportModal} 
         onClose={() => setShowProgressImportModal(false)}
         disciplines={disciplines}
         onImport={handleMergeProgress}
       />
+
     </section>
   );
 }

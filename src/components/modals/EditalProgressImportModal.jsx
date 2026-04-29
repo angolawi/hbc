@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../ui/Button';
+
+
 import { Card } from '../ui/Card';
 import { X, ClipboardPaste, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -29,6 +31,8 @@ export default function EditalProgressImportModal({ isOpen, onClose, onImport, d
   const [selectedDisciplineId, setSelectedDisciplineId] = useState('');
 
   if (!isOpen) return null;
+
+
 
   const handlePaste = (e) => {
     e.preventDefault();
