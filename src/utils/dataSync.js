@@ -161,9 +161,17 @@ export const smartSync = async (authenticatedUser = null, targetUserId = null) =
 
       if (cloudItem) {
         const cloudTs = cloudItem.updated_at;
-        if (!localTs || new Date(cloudTs) > new Date(localTs)) {
-          const val = typeof cloudItem.data === 'string' ? cloudItem.data : JSON.stringify(cloudItem.data);
-          localStorage.setItem(key, val);
+        const cloudVal = typeof cloudItem.data === 'string' ? cloudItem.data : JSON.stringify(cloudItem.data);
+        
+        const cloudIsEmpty = !cloudItem.data || (Array.isArray(cloudItem.data) && cloudItem.data.length === 0) || (typeof cloudItem.data === 'object' && Object.keys(cloudItem.data).length === 0);
+        const localIsEmpty = !localVal || localVal === '[]' || localVal === '{}' || localVal === 'null' || localVal === '""';
+
+        if (cloudIsEmpty && !localIsEmpty) {
+          let parsed;
+          try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
+          await pushData(key, parsed, user);
+        } else if (!localTs || new Date(cloudTs) > new Date(localTs)) {
+          localStorage.setItem(key, cloudVal);
           updateLocalTimestamp(key, cloudTs);
         } else if (new Date(localTs) > new Date(cloudTs)) {
           let parsed;
