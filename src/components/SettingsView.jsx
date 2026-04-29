@@ -78,6 +78,28 @@ export default function SettingsView() {
     alert(`Meta diária de ${dailyGoal}h salva com sucesso!`, "success");
   };
 
+  const handleHardReset = async () => {
+    const confirmed = await confirm("ATENÇÃO: Isso apagará TODOS os seus dados do HBC (edital, ciclos e progresso). Esta ação não pode ser desfeita. Prosseguir?", { variant: 'danger' });
+    if (confirmed) {
+      setSaving(true);
+      try {
+        const { error } = await supabase.from('user_data').delete().eq('user_id', user.id);
+        if (error) throw error;
+        
+        localStorage.clear();
+        
+        alert("Dados reiniciados com sucesso! A página será recarregada.", { variant: 'success' });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch(err) {
+        alert(`Erro ao reiniciar dados: ${err.message}`, { variant: 'danger' });
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
   useEffect(() => {
     setHistory(getSyncHistory());
 
@@ -328,7 +350,7 @@ export default function SettingsView() {
           </div>
         </Card>
 
-        {/* Privacy Notice */}
+        {/* Privacy Notice & Clean Slate */}
         <Card className="p-8 bg-zinc-950 border-zinc-800 border-dashed flex flex-col md:flex-row items-center gap-6">
           <div className="p-4 bg-amber-500/10 rounded-full text-amber-500">
             <AlertTriangle size={32} />
@@ -339,9 +361,18 @@ export default function SettingsView() {
               O armazenamento principal é local no seu navegador para garantir velocidade offline. A nuvem atua como um espelho de segurança e ponte entre seus dispositivos.
             </p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg shrink-0">
-            <ShieldCheck size={16} className="text-indigo-400" />
-            <span className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Totalmente Criptografado</span>
+          <div className="flex flex-col items-stretch md:items-end gap-2 shrink-0 w-full md:w-auto">
+            <div className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg">
+              <ShieldCheck size={16} className="text-indigo-400" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Totalmente Criptografado</span>
+            </div>
+            <Button 
+              disabled={saving}
+              onClick={handleHardReset}
+              className="bg-zinc-950 border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl flex items-center justify-center gap-2"
+            >
+              Reiniciar Todos os Dados
+            </Button>
           </div>
         </Card>
       </div>
