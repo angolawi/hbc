@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame, Crown, Medal, Users, Trophy } from 'lucide-react';
-import { pushData } from '../utils/dataSync';
+import { pushData, pullAllData } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
 import quotesData from '../assets/frases.json';
