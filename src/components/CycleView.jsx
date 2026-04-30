@@ -28,35 +28,49 @@ export default function CycleView({ setActiveTab }) {
   const [showFatigueWarning, setShowFatigueWarning] = useState(false);
   const [fatigueMsg, setFatigueMsg] = useState("");
 
-  useEffect(() => {
-    const loadEdital = async () => {
-      setLoading(true);
-      try {
-        if (selectedMentee) {
-          const data = await pullAllData(user, selectedMentee.id);
-          const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
-          setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria, tag: d.tag })));
-        } else {
-          // Busca do localStorage mas garante parse seguro
-          const editalData = localStorage.getItem('simpl_edital');
-          if (editalData) {
-            const parsed = JSON.parse(editalData);
-            setDisciplines(parsed.map(d => ({
-              id: d.id,
-              nome: d.nome,
-              categoria: d.categoria,
-              tag: d.tag
-            })));
-          }
+  const loadEdital = async () => {
+    setLoading(true);
+    try {
+      if (selectedMentee) {
+        const data = await pullAllData(user, selectedMentee.id);
+        const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
+        setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria, tag: d.tag })));
+      } else {
+        const editalData = localStorage.getItem('simpl_edital');
+        if (editalData) {
+          const parsed = JSON.parse(editalData);
+          setDisciplines(parsed.map(d => ({
+            id: d.id,
+            nome: d.nome,
+            categoria: d.categoria,
+            tag: d.tag
+          })));
         }
-      } catch (e) {
-        console.error("Erro ao carregar edital para ciclo:", e);
-      } finally {
-        setLoading(false);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar edital para ciclo:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEdital();
+
+    const handleSync = (e) => {
+      if (e.detail.type === 'pull' && e.detail.status === 'success') {
+        const isViewingMentee = !!selectedMentee;
+        const eventIsForMentee = !!e.detail.isMentee;
+        
+        if (isViewingMentee === eventIsForMentee) {
+          loadEdital();
+        }
       }
     };
-    loadEdital();
-  }, [selectedMentee, user, step]); // Adicionado 'step' para atualizar ao navegar entre passos
+
+    window.addEventListener('sync-status', handleSync);
+    return () => window.removeEventListener('sync-status', handleSync);
+  }, [selectedMentee, user, step]);
 
   const handleSelectDisc = (id, field, value) => {
     setSelectedDiscs(prev => ({

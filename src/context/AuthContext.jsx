@@ -12,6 +12,7 @@ export const AuthProvider = ({ children }) => {
   const [isMentor, setIsMentor] = useState(false);
   const [selectedMentee, setSelectedMentee] = useState(null);
   const realtimeChannelRef = useRef(null);
+  const menteeRealtimeChannelRef = useRef(null);
   const initializedRef = useRef(false);
 
   // Busca o perfil completo (incluindo nome e concurso)
@@ -107,9 +108,35 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       subscription.unsubscribe();
-      if (realtimeChannelRef.current) realtimeChannelRef.current.unsubscribe();
+      if (realtimeChannelRef.current) supabase.removeChannel(realtimeChannelRef.current);
+      if (menteeRealtimeChannelRef.current) supabase.removeChannel(menteeRealtimeChannelRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (menteeRealtimeChannelRef.current) {
+      supabase.removeChannel(menteeRealtimeChannelRef.current);
+      menteeRealtimeChannelRef.current = null;
+    }
+
+    if (selectedMentee?.id) {
+      menteeRealtimeChannelRef.current = supabase
+        .channel(`user_data_mentee_${selectedMentee.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_data', filter: `user_id=eq.${selectedMentee.id}` }, 
+        (payload) => {
+          if (payload.new && payload.new.key) {
+            window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success', isMentee: true } }));
+          }
+        })
+        .subscribe();
+    }
+
+    return () => {
+      if (menteeRealtimeChannelRef.current) {
+        supabase.removeChannel(menteeRealtimeChannelRef.current);
+      }
+    };
+  }, [selectedMentee]);
 
   const logout = async () => {
     try {

@@ -117,82 +117,96 @@ export const pushData = async (key, data, authenticatedUser = null, targetUserId
   }
 };
 
+const activeSyncPromises = {};
+
 /**
  * Performs a smart merge between local and cloud data
  */
 export const smartSync = async (authenticatedUser = null, targetUserId = null) => {
-  try {
-    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'start' } }));
-
-    let user = authenticatedUser;
-    if (!user) {
+  let user = authenticatedUser;
+  if (!user) {
+    try {
       const { data: { session } } = await withTimeout(
         supabase.auth.getSession(), 5000, 'getSession() in smartSync'
       );
       user = session?.user;
+    } catch (e) {
+      console.error(e);
     }
+  }
 
-    if (!user) {
-      window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'error' } }));
-      return;
-    }
+  if (!user) {
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'error' } }));
+    return;
+  }
 
-    const userIdToFetch = targetUserId || user.id;
+  const userIdToFetch = targetUserId || user.id;
 
-    const { data: cloudData, error } = await withTimeout(
-      supabase.from('user_data').select('key, data, updated_at').eq('user_id', userIdToFetch),
-      15000,
-      'select user_data'
-    );
+  if (activeSyncPromises[userIdToFetch]) {
+    return activeSyncPromises[userIdToFetch];
+  }
 
-    if (error) throw error;
+  activeSyncPromises[userIdToFetch] = (async () => {
+    try {
+      window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'start' } }));
 
-    const cloudMap = new Map(cloudData.map(item => [item.key, item]));
-    
-    for (const key of SYNC_KEYS) {
-      // In Mentor mode, we DON'T pull to local storage (we don't want to overwrite mentor's personal data)
-      // unless we are specifically in a "Preview Mode" handled by the UI.
-      // For now, smartSync strictly handles the current user's local merge.
-      if (targetUserId) continue; 
+      const { data: cloudData, error } = await withTimeout(
+        supabase.from('user_data').select('key, data, updated_at').eq('user_id', userIdToFetch),
+        15000,
+        'select user_data'
+      );
 
-      const localVal = localStorage.getItem(key);
-      const localTs = localStorage.getItem(`${key}_timestamp`);
-      const cloudItem = cloudMap.get(key);
+      if (error) throw error;
 
-      if (cloudItem) {
-        const cloudTs = cloudItem.updated_at;
-        const cloudVal = typeof cloudItem.data === 'string' ? cloudItem.data : JSON.stringify(cloudItem.data);
-        
-        const cloudIsEmpty = !cloudItem.data || (Array.isArray(cloudItem.data) && cloudItem.data.length === 0) || (typeof cloudItem.data === 'object' && Object.keys(cloudItem.data).length === 0);
-        const localIsEmpty = !localVal || localVal === '[]' || localVal === '{}' || localVal === 'null' || localVal === '""';
+      const cloudMap = new Map(cloudData.map(item => [item.key, item]));
+      
+      for (const key of SYNC_KEYS) {
+        if (targetUserId) continue; 
 
-        if (cloudIsEmpty && !localIsEmpty) {
-          let parsed;
-          try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
-          await pushData(key, parsed, user);
-        } else if (!localTs || new Date(cloudTs) > new Date(localTs)) {
-          localStorage.setItem(key, cloudVal);
-          updateLocalTimestamp(key, cloudTs);
-        } else if (new Date(localTs) > new Date(cloudTs)) {
+        const localVal = localStorage.getItem(key);
+        const localTs = localStorage.getItem(`${key}_timestamp`);
+        const cloudItem = cloudMap.get(key);
+
+        if (cloudItem) {
+          const cloudTs = cloudItem.updated_at;
+          const cloudVal = typeof cloudItem.data === 'string' ? cloudItem.data : JSON.stringify(cloudItem.data);
+          
+          const cloudIsEmpty = !cloudItem.data || (Array.isArray(cloudItem.data) && cloudItem.data.length === 0) || (typeof cloudItem.data === 'object' && Object.keys(cloudItem.data).length === 0);
+          const localIsEmpty = !localVal || localVal === '[]' || localVal === '{}' || localVal === 'null' || localVal === '""';
+
+          if (cloudIsEmpty && !localIsEmpty) {
+            let parsed;
+            try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
+            await pushData(key, parsed, user);
+          } else if (!localTs || new Date(cloudTs) > new Date(localTs)) {
+            localStorage.setItem(key, cloudVal);
+            updateLocalTimestamp(key, cloudTs);
+          } else if (new Date(localTs) > new Date(cloudTs)) {
+            let parsed;
+            try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
+            await pushData(key, parsed, user);
+          }
+        } else if (localVal !== null) {
           let parsed;
           try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
           await pushData(key, parsed, user);
         }
-      } else if (localVal !== null) {
-        let parsed;
-        try { parsed = JSON.parse(localVal); } catch (e) { parsed = localVal; }
-        await pushData(key, parsed, user);
       }
-    }
 
-    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
-    logSyncEvent('Automatic Sync', 'success', `${cloudData.length} items checked${targetUserId ? ' (Mentor Mode)' : ''}`);
-    return cloudData;
-  } catch (err) {
-    console.error('[DataSync] Smart Sync failed:', err.message || err);
-    window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'error' } }));
-    logSyncEvent('Automatic Sync', 'error', err.message || 'Unknown error');
-  }
+      window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'success' } }));
+      logSyncEvent('Automatic Sync', 'success', `${cloudData.length} items checked${targetUserId ? ' (Mentor Mode)' : ''}`);
+      return cloudData;
+    } catch (err) {
+      console.error('[DataSync] Smart Sync failed:', err.message || err);
+      window.dispatchEvent(new CustomEvent('sync-status', { detail: { type: 'pull', status: 'error' } }));
+      logSyncEvent('Automatic Sync', 'error', err.message || 'Unknown error');
+      throw err;
+    } finally {
+      delete activeSyncPromises[userIdToFetch];
+    }
+  })();
+
+  return activeSyncPromises[userIdToFetch];
 };
 
 /**

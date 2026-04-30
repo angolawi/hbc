@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, Trash, Loader2, ShieldCheck, Lock, Eye } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
@@ -23,6 +23,8 @@ export default function CycleDashboardView() {
     const [importTarget, setImportTarget] = useState(null);
     const [isCycleCompleted, setIsCycleCompleted] = useState(false);
 
+    const hasFetchedRef = useRef(false);
+
     // Carrega dados corretos: do aluno via Supabase (mentor) ou localStorage (aluno)
     useEffect(() => {
         const loadData = async () => {
@@ -41,8 +43,25 @@ export default function CycleDashboardView() {
                 }
             } else {
                 // Modo aluno — carrega do localStorage
-                const savedInst = localStorage.getItem('simpl_cycle_instances');
-                const savedProg = localStorage.getItem('simpl_grid_progress');
+                let savedInst = localStorage.getItem('simpl_cycle_instances');
+                let savedProg = localStorage.getItem('simpl_grid_progress');
+
+                // Fallback seguro se o localStorage estiver vazio (corrige Race Condition)
+                if (!savedInst && user && !hasFetchedRef.current) {
+                    hasFetchedRef.current = true;
+                    try {
+                        const cloudData = await pullAllData(user);
+                        if (cloudData && Array.isArray(cloudData)) {
+                            const cloudInst = cloudData.find(i => i.key === 'simpl_cycle_instances')?.data;
+                            const cloudProg = cloudData.find(i => i.key === 'simpl_grid_progress')?.data;
+                            if (cloudInst) savedInst = JSON.stringify(cloudInst);
+                            if (cloudProg) savedProg = JSON.stringify(cloudProg);
+                        }
+                    } catch (err) {
+                        console.error("Erro no fallback de pullAllData (CycleDashboard):", err);
+                    }
+                }
+
                 const inst = savedInst ? JSON.parse(savedInst) : [];
                 let prog = savedProg ? JSON.parse(savedProg) : {};
 
@@ -100,9 +119,13 @@ export default function CycleDashboardView() {
         loadData();
 
         const handleSync = (e) => {
-            // Recarrega APENAS do localStorage para evitar loop infinito
-            if (e.detail.type === 'pull' && e.detail.status === 'success' && !selectedMentee) {
-                loadData();
+            if (e.detail.type === 'pull' && e.detail.status === 'success') {
+                const isViewingMentee = !!selectedMentee;
+                const eventIsForMentee = !!e.detail.isMentee;
+                
+                if (isViewingMentee === eventIsForMentee && !hasFetchedRef.current) {
+                    loadData();
+                }
             }
         };
         window.addEventListener('sync-status', handleSync);

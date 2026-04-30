@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
@@ -15,6 +15,11 @@ const blankMetrics = () => ({
   fase3: { certas: '', resolvidas: '' }
 });
 
+const normalizeText = (text) => {
+  if (!text) return '';
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+};
+
 export default function EditalView() {
   const { alert, confirm } = useNotification();
   const { user, selectedMentee, isMentor } = useAuth();
@@ -25,6 +30,8 @@ export default function EditalView() {
   const [newDiscTag, setNewDiscTag] = useState('teorica');
   const [smartText, setSmartText] = useState('');
   const [activeCycleDiscs, setActiveCycleDiscs] = useState([]); // IDs das matérias no ciclo
+  const [cycleTagsMap, setCycleTagsMap] = useState({});
+  const hasFetchedRef = useRef(false);
 
   // Template States
   const [showTemplates, setShowTemplates] = useState(false);
@@ -46,11 +53,40 @@ export default function EditalView() {
         const savedCiclo = data?.find(i => i.key === 'simpl_ciclo')?.data;
         if (savedCiclo) {
           const blocks = Array.isArray(savedCiclo) ? savedCiclo : (savedCiclo.blocks || []);
-          setActiveCycleDiscs([...new Set(blocks.map(b => b.id))]);
+          setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
+          
+          const tagsMap = {};
+          blocks.forEach(b => {
+            if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag;
+          });
+          setCycleTagsMap(tagsMap);
         }
         setLoading(false);
       } else {
-        const savedData = localStorage.getItem('simpl_edital');
+        let savedData = localStorage.getItem('simpl_edital');
+        let savedCicloLocal = localStorage.getItem('simpl_ciclo');
+
+        // Fallback seguro se o localStorage estiver vazio
+        if (!savedData && user && !hasFetchedRef.current) {
+          hasFetchedRef.current = true;
+          try {
+            const cloudData = await pullAllData(user);
+            if (cloudData && Array.isArray(cloudData)) {
+              const cloudEdital = cloudData.find(i => i.key === 'simpl_edital')?.data;
+              const cloudCiclo = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
+              
+              if (cloudEdital) {
+                savedData = typeof cloudEdital === 'string' ? cloudEdital : JSON.stringify(cloudEdital);
+              }
+              if (cloudCiclo) {
+                savedCicloLocal = typeof cloudCiclo === 'string' ? cloudCiclo : JSON.stringify(cloudCiclo);
+              }
+            }
+          } catch (err) {
+            console.error("Erro no fallback de pullAllData (Edital):", err);
+          }
+        }
+
         if (savedData) {
           try {
             const parsedData = JSON.parse(savedData);
@@ -60,19 +96,29 @@ export default function EditalView() {
           }
         }
 
-        const savedCicloLocal = localStorage.getItem('simpl_ciclo');
         if (savedCicloLocal) {
           const parsed = JSON.parse(savedCicloLocal);
           const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
-          setActiveCycleDiscs([...new Set(blocks.map(b => b.id))]);
+          setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
+          
+          const tagsMap = {};
+          blocks.forEach(b => {
+            if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag;
+          });
+          setCycleTagsMap(tagsMap);
         }
       }
     };
     loadData();
     if (isMentor) fetchTemplates();
     const handleSync = (e) => {
-      if (e.detail.type === 'pull' && e.detail.status === 'success' && !selectedMentee) {
-        loadData();
+      if (e.detail.type === 'pull' && e.detail.status === 'success') {
+        const isViewingMentee = !!selectedMentee;
+        const eventIsForMentee = !!e.detail.isMentee;
+        
+        if (isViewingMentee === eventIsForMentee && !hasFetchedRef.current) {
+          loadData();
+        }
       }
     };
     window.addEventListener('sync-status', handleSync);
@@ -794,21 +840,22 @@ export default function EditalView() {
             ) : (
               <div className="space-y-12">
                 {/* Disciplinas no Ciclo Ativo */}
-                {disciplines.some(d => activeCycleDiscs.includes(d.id)) && (
+                {disciplines.some(d => activeCycleDiscs.includes(normalizeText(d.nome))) && (
                   <div className="space-y-6">
                     <h2 className="text-xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3 ml-2 drop-shadow-sm">
                       <BrainCircuit className="text-indigo-500" size={24} />
-                      No ciclo atual ({disciplines.filter(d => activeCycleDiscs.includes(d.id)).length})
+                      No ciclo atual ({disciplines.filter(d => activeCycleDiscs.includes(normalizeText(d.nome))).length})
                     </h2>
                     <div className="grid grid-cols-1 gap-4">
                       {disciplines
-                        .filter(d => activeCycleDiscs.includes(d.id))
+                        .filter(d => activeCycleDiscs.includes(normalizeText(d.nome)))
                         .map(disc => (
                           <DisciplineBlock
                             key={disc.id}
                             discipline={disc}
                             isMentor={isMentor}
                             selectedMentee={selectedMentee}
+                            cycleTagsMap={cycleTagsMap}
                             onRemove={() => removeDiscipline(disc.id)}
                             onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
                             onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
@@ -828,17 +875,18 @@ export default function EditalView() {
                 <div className="space-y-6">
                   <h2 className="text-xl font-black text-zinc-600 uppercase tracking-widest flex items-center gap-3 ml-2 italic">
                     <GraduationCap className="text-zinc-700" size={24} />
-                    {(selectedMentee || !isMentor) ? `Fomentando o Edital (${disciplines.filter(d => !activeCycleDiscs.includes(d.id)).length})` : `Disciplinas do Edital (${disciplines.length})`}
+                    {(selectedMentee || !isMentor) ? `Fomentando o Edital (${disciplines.filter(d => !activeCycleDiscs.includes(normalizeText(d.nome))).length})` : `Disciplinas do Edital (${disciplines.length})`}
                   </h2>
                   <div className="grid grid-cols-1 gap-4">
                     {disciplines
-                      .filter(d => !activeCycleDiscs.includes(d.id))
+                      .filter(d => !activeCycleDiscs.includes(normalizeText(d.nome)))
                       .map(disc => (
                         <DisciplineBlock
                           key={disc.id}
                           discipline={disc}
                           isMentor={isMentor}
                           selectedMentee={selectedMentee}
+                          cycleTagsMap={cycleTagsMap}
                           onRemove={() => removeDiscipline(disc.id)}
                           onChangeCategory={(cat) => updateDisciplineCategory(disc.id, cat)}
                           onChangePhase={(phase) => updateDisciplinePhase(disc.id, phase)}
@@ -897,7 +945,7 @@ export default function EditalView() {
   );
 }
 
-function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName }) {
+function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onChangeCategory, onChangePhase, onChangeTag, onAddBulk, onRemoveTopico, onUpdateTopicMetrics, onEditTopicoText, onEditName, cycleTagsMap = {} }) {
   const [bulkText, setBulkText] = useState('');
   const [isListCollapsed, setIsListCollapsed] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -927,6 +975,8 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
   const phase = discipline.currentPhase || 1;
   const isPhase2 = phase === 2;
   const isPhase3 = phase === 3;
+  
+  const effectiveTag = cycleTagsMap[normalizeText(discipline.nome)] || discipline.tag || '';
 
   const cardBorderClass = isPhase3 ? "border-rose-500/50 shadow-rose-900/20" : isPhase2 ? "border-amber-500/50 shadow-amber-900/20" : "border-zinc-800 shadow-xl";
   const headerBgClass = isPhase3 ? "bg-rose-950/20" : isPhase2 ? "bg-amber-950/20" : "bg-zinc-900";
@@ -994,7 +1044,8 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
                   </select>
 
                   <select
-                    value={discipline.tag || 'teorica'}
+                    value={(effectiveTag || '').toLowerCase().includes('teor') ? 'teorica' : 
+                           ((effectiveTag || '').toLowerCase().includes('calc') || (effectiveTag || '').toLowerCase().includes('exat')) ? 'calculo' : 'analitica'}
                     onChange={(e) => onChangeTag(e.target.value)}
                     className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700 font-black"
                   >
@@ -1012,7 +1063,8 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
                     Fase {phase}
                   </span>
                   <span className="bg-zinc-800 text-zinc-500 tracking-wider text-[10px] uppercase rounded px-2 py-0.5 font-bold border border-zinc-700/50 flex items-center gap-1">
-                    {discipline.tag === 'teorica' ? '🟢 Teórica' : discipline.tag === 'calculo' ? '🔴 Exatas' : '🟡 Analítica'}
+                    {(effectiveTag || '').toLowerCase().includes('teor') ? '🟢 Teórica' : 
+                     ((effectiveTag || '').toLowerCase().includes('calc') || (effectiveTag || '').toLowerCase().includes('exat')) ? '🔴 Exatas' : '🟡 Analítica'}
                   </span>
                 </>
               )}

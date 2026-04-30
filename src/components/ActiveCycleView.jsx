@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/Button';
 import { BrainCircuit, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { pushData } from '../utils/dataSync';
+import { pushData, pullAllData } from '../utils/dataSync';
 
 const TAGS = {
   teorica: { id: 'teorica', label: 'Teórica / Decoreba', icon: '🟢', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -18,9 +18,33 @@ export default function ActiveCycleView({ setActiveTab }) {
   const [inactiveCycles, setInactiveCycles] = useState([]);
   const [isUnlocked, setIsUnlocked] = useState(true);
   const [lastDiscName, setLastDiscName] = useState("");
+  const hasFetchedRef = useRef(false);
 
-  const loadData = () => {
-    const active = localStorage.getItem('simpl_ciclo');
+  const loadData = async () => {
+    let active = localStorage.getItem('simpl_ciclo');
+    let history = localStorage.getItem('simpl_ciclo_history');
+
+    // Fallback seguro se o localStorage estiver vazio
+    if (!active && user && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      try {
+        const cloudData = await pullAllData(user);
+        if (cloudData && Array.isArray(cloudData)) {
+          const cloudCiclo = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
+          const cloudHistory = cloudData.find(i => i.key === 'simpl_ciclo_history')?.data;
+          
+          if (cloudCiclo) {
+            active = typeof cloudCiclo === 'string' ? cloudCiclo : JSON.stringify(cloudCiclo);
+          }
+          if (cloudHistory) {
+            history = typeof cloudHistory === 'string' ? cloudHistory : JSON.stringify(cloudHistory);
+          }
+        }
+      } catch (err) {
+        console.error("Erro no fallback de pullAllData (ActiveCycle):", err);
+      }
+    }
+
     let currentBlocks = [];
     if (active) {
       try {
@@ -34,7 +58,6 @@ export default function ActiveCycleView({ setActiveTab }) {
       setActiveCycle(null);
     }
 
-    const history = localStorage.getItem('simpl_ciclo_history');
     if (history) {
       setInactiveCycles(JSON.parse(history));
     } else {
@@ -70,7 +93,7 @@ export default function ActiveCycleView({ setActiveTab }) {
 
     // Listen for sync completion to reload data
     const handleSync = (e) => {
-      if (e.detail.type === 'pull' && e.detail.status === 'success') {
+      if (e.detail.type === 'pull' && e.detail.status === 'success' && !e.detail.isMentee && !hasFetchedRef.current) {
         loadData();
       }
     };
