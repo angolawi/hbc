@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/Card';
-import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame, Crown, Medal, Users, Trophy } from 'lucide-react';
+import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame, Crown, Medal, Users, Trophy, CheckCircle2 } from 'lucide-react';
 import { pushData, pullAllData } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
@@ -9,8 +9,6 @@ import dreadboardData from '../assets/dreadboard.json';
 
 export default function HomeDashboardView() {
   const [stats, setStats] = useState({
-    horasEstudadas: 0,
-    minutosEstudados: 0,
     certas: 0,
     resolvidas: 0,
     desempenhoTotal: 0,
@@ -34,144 +32,18 @@ export default function HomeDashboardView() {
   const { user, selectedMentee } = useAuth();
   const hasFetchedRef = useRef(false);
 
-  const loadData = async () => {
-    if (!user) return;
-    let rawHoras, rawEdital, cicloData, dailyGoalRaw, dailyMinsLogRaw, messagesRaw, rawGlobalStats;
+  const computeStats = (rawEdital, dailyGoalRaw, dailyMinsLogRaw) => {
 
-    if (selectedMentee) {
-      const cloudData = await pullAllData(user, selectedMentee.id);
-      rawHoras = cloudData?.find(i => i.key === 'simpl_horas_estudadas')?.data;
-      rawEdital = cloudData?.find(i => i.key === 'simpl_edital')?.data;
-      cicloData = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
-      dailyGoalRaw = cloudData?.find(i => i.key === 'simpl_daily_goal')?.data;
-      dailyMinsLogRaw = cloudData?.find(i => i.key === 'simpl_daily_study_time')?.data;
-      rawGlobalStats = cloudData?.find(i => i.key === 'simpl_global_stats')?.data;
-      messagesRaw = cloudData?.find(i => i.key === 'simpl_messages')?.data || [];
-      setMessages(messagesRaw);
-    } else {
-      rawHoras = localStorage.getItem('simpl_horas_estudadas');
-      rawEdital = localStorage.getItem('simpl_edital');
-      cicloData = localStorage.getItem('simpl_ciclo');
-      dailyGoalRaw = localStorage.getItem('simpl_daily_goal');
-      dailyMinsLogRaw = localStorage.getItem('simpl_daily_study_time');
+    let discData = [];
+    try {
+      discData = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
+    } catch (e) { console.error("Error parsing edital:", e); }
+    if (!Array.isArray(discData)) discData = [];
 
-      // Fallback seguro se o localStorage estiver vazio (corrige Race Condition)
-      if (!rawEdital && user && !hasFetchedRef.current) {
-        hasFetchedRef.current = true;
-        try {
-          const cloudData = await pullAllData(user);
-          if (cloudData && Array.isArray(cloudData)) {
-            rawHoras = cloudData.find(i => i.key === 'simpl_horas_estudadas')?.data;
-            rawEdital = cloudData.find(i => i.key === 'simpl_edital')?.data;
-            cicloData = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
-            dailyGoalRaw = cloudData.find(i => i.key === 'simpl_daily_goal')?.data;
-            dailyMinsLogRaw = cloudData.find(i => i.key === 'simpl_daily_study_time')?.data;
-          }
-        } catch (err) {
-          console.error("Erro no fallback de pullAllData:", err);
-        }
-      }
-
-      const savedMsg = localStorage.getItem('simpl_messages');
-      setMessages(savedMsg ? JSON.parse(savedMsg) : []);
-    }
-
-    const hardModeActive = localStorage.getItem('simpl_hard_mode') === 'true';
-    setIsHardMode(hardModeActive);
-
-    const source = hardModeActive ? dreadboardData : quotesData;
-    if (!randomQuote && source.frases && source.frases.length > 0) {
-      const idx = Math.floor(Math.random() * source.frases.length);
-      setRandomQuote(source.frases[idx]);
-    }
-
-    const mins = rawHoras ? parseInt(rawHoras, 10) : 0;
-    const hrs = Math.floor(mins / 60);
-    const remMins = mins % 60;
-
-    let discData = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
-
-    // Calcular dados com base no Edital Completo para garantir que métricas importadas apareçam
     let totalCertas = 0;
     let totalResolvidas = 0;
     const disciplinasCalculadas = [];
     const temasAvaliacao = [];
-    let totalTopicos = 0;
-    let f1Concluidos = 0;
-    let f2Concluidos = 0;
-    let f3Concluidos = 0;
-
-    try {
-      discData.forEach(disc => {
-        let discCertas = 0;
-        let discResolvidas = 0;
-
-        if (disc.weeklyStats) {
-          Object.values(disc.weeklyStats).forEach(w => {
-            discCertas += Number(w.certas) || 0;
-            discResolvidas += Number(w.resolvidas) || 0;
-          });
-        }
-
-        if (disc.topicos && Array.isArray(disc.topicos)) {
-          totalTopicos += disc.topicos.length;
-          disc.topicos.forEach(topico => {
-            if (topico.fase1?.conclusao) f1Concluidos++;
-            if (topico.fase2?.conclusao) f2Concluidos++;
-            if (Number(topico.fase3?.resolvidas) > 0) f3Concluidos++;
-
-            let tCertas = 0;
-            let tResolvidas = 0;
-
-            ['fase1', 'fase2', 'fase3'].forEach(fase => {
-              if (topico[fase]) {
-                tCertas += Number(topico[fase].certas) || 0;
-                tResolvidas += Number(topico[fase].resolvidas) || 0;
-              }
-            });
-
-            discCertas += tCertas;
-            discResolvidas += tResolvidas;
-
-            if (tResolvidas > 0) {
-              const tPct = (tCertas / tResolvidas) * 100;
-              if (tPct < 70) {
-                temasAvaliacao.push({
-                  id: topico.id,
-                  disciplina: disc.nome,
-                  texto: topico.texto,
-                  pct: tPct,
-                  resolvidas: tResolvidas,
-                  certas: tCertas
-                });
-              }
-            }
-          });
-        }
-
-        totalCertas += discCertas;
-        totalResolvidas += discResolvidas;
-
-        let pct = 0;
-        if (discResolvidas > 0) {
-          pct = (discCertas / discResolvidas) * 100;
-        }
-
-        disciplinasCalculadas.push({
-          id: disc.id,
-          nome: disc.nome,
-          certas: discCertas,
-          resolvidas: discResolvidas,
-          pct: pct
-        });
-      });
-    } catch (err) {
-      console.error("Subject metrics computation failure:", err);
-    }
-
-    temasAvaliacao.sort((a, b) => a.pct - b.pct);
-    const dsptotal = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
-
     let totalAllTopicos = 0;
     let concluidoF1 = 0;
     let concluidoF2 = 0;
@@ -180,28 +52,72 @@ export default function HomeDashboardView() {
     let minsF2 = 0;
     let minsF3 = 0;
 
-    let allEdital = [];
-    try {
-      allEdital = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
-    } catch (e) {
-      console.error("Error parsing edital for progress calculation:", e);
-    }
-    if (!Array.isArray(allEdital)) allEdital = [];
+    discData.forEach(disc => {
+      let discCertas = 0;
+      let discResolvidas = 0;
 
-    allEdital.forEach(d => {
-      if (d.topicos) {
-        d.topicos.forEach(t => {
-          totalAllTopicos++;
-          if (t.fase1?.conclusao) concluidoF1++;
-          if (t.fase2?.conclusao) concluidoF2++;
-          if (t.fase3?.resolvidas > 0) concluidoF3++;
-
-          minsF1 += Number(t.fase1?.minutos) || 0;
-          minsF2 += Number(t.fase2?.minutos) || 0;
-          minsF3 += Number(t.fase3?.minutos) || 0;
+      if (disc.weeklyStats) {
+        Object.values(disc.weeklyStats).forEach(w => {
+          discCertas += Number(w.certas) || 0;
+          discResolvidas += Number(w.resolvidas) || 0;
         });
       }
+
+      if (disc.topicos && Array.isArray(disc.topicos)) {
+        disc.topicos.forEach(topico => {
+          totalAllTopicos++;
+          if (topico.fase1?.conclusao) concluidoF1++;
+          if (topico.fase2?.conclusao) concluidoF2++;
+          if (Number(topico.fase3?.resolvidas) > 0) concluidoF3++;
+
+          minsF1 += Number(topico.fase1?.minutos) || 0;
+          minsF2 += Number(topico.fase2?.minutos) || 0;
+          minsF3 += Number(topico.fase3?.minutos) || 0;
+
+          let tCertas = 0;
+          let tResolvidas = 0;
+
+          ['fase1', 'fase2', 'fase3'].forEach(fase => {
+            if (topico[fase]) {
+              tCertas += Number(topico[fase].certas) || 0;
+              tResolvidas += Number(topico[fase].resolvidas) || 0;
+            }
+          });
+
+          discCertas += tCertas;
+          discResolvidas += tResolvidas;
+
+          if (tResolvidas > 0) {
+            const tPct = (tCertas / tResolvidas) * 100;
+            if (tPct < 70) {
+              temasAvaliacao.push({
+                id: topico.id,
+                disciplina: disc.nome,
+                texto: topico.texto,
+                pct: tPct,
+                resolvidas: tResolvidas,
+                certas: tCertas
+              });
+            }
+          }
+        });
+      }
+
+      totalCertas += discCertas;
+      totalResolvidas += discResolvidas;
+
+      let pct = discResolvidas > 0 ? (discCertas / discResolvidas) * 100 : 0;
+      disciplinasCalculadas.push({
+        id: disc.id,
+        nome: disc.nome,
+        certas: discCertas,
+        resolvidas: discResolvidas,
+        pct: pct
+      });
     });
+
+    temasAvaliacao.sort((a, b) => a.pct - b.pct);
+    const dsptotal = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
 
     const todayStr = new Date().toISOString().split('T')[0];
     let dailyMinsLog = {};
@@ -214,8 +130,6 @@ export default function HomeDashboardView() {
     const dailyGoalValue = isNaN(parsedDailyGoal) ? 0 : parsedDailyGoal;
 
     setStats({
-      horasEstudadas: hrs,
-      minutosEstudados: remMins,
       certas: totalCertas,
       resolvidas: totalResolvidas,
       desempenhoTotal: dsptotal,
@@ -232,18 +146,70 @@ export default function HomeDashboardView() {
       todayMins: todayMinsValue
     });
 
-    if (!selectedMentee && !rawGlobalStats && (totalCertas > 0 || totalResolvidas > 0)) {
-      const statsObj = {
-        totalCertas,
-        totalResolvidas,
-        desempenhoTotal: totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0,
-        updatedAt: new Date().toISOString()
-      };
-      pushData('simpl_global_stats', statsObj, user);
+    return { totalCertas, totalResolvidas };
+  };
+
+  const loadData = async () => {
+    if (!user) return;
+    let rawEdital, dailyGoalRaw, dailyMinsLogRaw;
+
+    if (selectedMentee) {
+      if (hasFetchedRef.current === selectedMentee.id) return;
+      hasFetchedRef.current = selectedMentee.id;
+      
+      try {
+        const cloudData = await pullAllData(user, selectedMentee.id); 
+        
+        const freshEdital = cloudData?.find(i => i.key === 'simpl_edital')?.data;
+        const freshGoal = cloudData?.find(i => i.key === 'simpl_daily_goal')?.data;
+        const freshMins = cloudData?.find(i => i.key === 'simpl_daily_study_time')?.data;
+        const freshMsg = cloudData?.find(i => i.key === 'simpl_messages')?.data || [];
+        
+        setMessages(freshMsg);
+        computeStats(freshEdital, freshGoal, freshMins);
+      } catch (err) {
+        console.error("Erro ao carregar dados do mentorado:", err);
+      }
+    } else {
+      // Modo Aluno: Carrega local primeiro
+      rawEdital = localStorage.getItem('simpl_edital');
+      dailyGoalRaw = localStorage.getItem('simpl_daily_goal');
+      dailyMinsLogRaw = localStorage.getItem('simpl_daily_study_time');
+      const savedMsg = localStorage.getItem('simpl_messages');
+      setMessages(savedMsg ? JSON.parse(savedMsg) : []);
+
+      computeStats(rawEdital, dailyGoalRaw, dailyMinsLogRaw);
+
+      // Fetch cloud em background (uma vez por montagem)
+      if (user && hasFetchedRef.current !== user.id) {
+        hasFetchedRef.current = user.id;
+        try {
+          await pullAllData(user);
+          
+          const localEdital = localStorage.getItem('simpl_edital');
+          const localGoal = localStorage.getItem('simpl_daily_goal');
+          const localMins = localStorage.getItem('simpl_daily_study_time');
+          const localMsg = localStorage.getItem('simpl_messages');
+          
+          if (localMsg) setMessages(JSON.parse(localMsg));
+          computeStats(localEdital, localGoal, localMins);
+        } catch (err) {
+          console.error("Erro no background pull:", err);
+        }
+      }
+    }
+
+    const hardModeActive = localStorage.getItem('simpl_hard_mode') === 'true';
+    setIsHardMode(hardModeActive);
+    const source = hardModeActive ? dreadboardData : quotesData;
+    if (!randomQuote && source.frases && source.frases.length > 0) {
+      const idx = Math.floor(Math.random() * source.frases.length);
+      setRandomQuote(source.frases[idx]);
     }
   };
 
   useEffect(() => {
+    hasFetchedRef.current = null; // Reseta ao trocar mentee/user
     loadData();
 
     const handleSync = (e) => {
@@ -251,8 +217,15 @@ export default function HomeDashboardView() {
         const isViewingMentee = !!selectedMentee;
         const eventIsForMentee = !!e.detail.isMentee;
         
-        if (isViewingMentee === eventIsForMentee && !hasFetchedRef.current) {
-          loadData();
+        if (isViewingMentee === eventIsForMentee) {
+          // Atualiza estados usando o local storage que acabou de ser sincronizado
+          const localEdital = localStorage.getItem('simpl_edital');
+          const localGoal = localStorage.getItem('simpl_daily_goal');
+          const localMins = localStorage.getItem('simpl_daily_study_time');
+          const localMsg = localStorage.getItem('simpl_messages');
+          
+          if (localMsg) setMessages(JSON.parse(localMsg));
+          computeStats(localEdital, localGoal, localMins);
         }
       }
     };
@@ -384,8 +357,6 @@ export default function HomeDashboardView() {
               {leaderboard.map((comp, idx) => {
                 const isMe = comp.id === user.id;
                 const pos = idx + 1;
-                const hrs = Math.floor((comp.study_minutes || 0) / 60);
-                const rm = (comp.study_minutes || 0) % 60;
                 
                 return (
                   <div 
@@ -412,20 +383,15 @@ export default function HomeDashboardView() {
                       </div>
                       <div className="flex items-center gap-3 mt-1 opacity-60">
                          <div className="flex items-center gap-1">
-                            <Clock size={10} />
-                            <span className="text-[10px] font-bold">{hrs}h {rm}m</span>
-                         </div>
-                         <div className="w-1 h-1 bg-zinc-700 rounded-full" />
-                         <div className="flex items-center gap-1">
-                            <Target size={10} />
-                            <span className="text-[10px] font-bold">{(comp.avg_performance || 0).toFixed(1)}%</span>
+                            <CheckCircle2 size={10} />
+                            <span className="text-[10px] font-bold">{comp.questions_solved || 0} questões</span>
                          </div>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                       <span className="text-[10px] font-black text-zinc-500 block uppercase tracking-widest">Questões</span>
-                       <span className="text-lg font-black text-zinc-200 tabular-nums">{comp.questions_solved || 0}</span>
+                       <span className="text-[10px] font-black text-zinc-500 block uppercase tracking-widest">Aproveitamento</span>
+                       <span className="text-lg font-black text-zinc-200 tabular-nums">{(comp.avg_performance || 0).toFixed(1)}%</span>
                     </div>
                   </div>
                 );
@@ -601,27 +567,6 @@ export default function HomeDashboardView() {
         </div>
       </Card>
 
-      {/* Time Tracking Card - Total Only */}
-      <Card className="bg-gradient-to-br from-indigo-900/20 to-zinc-900 border-indigo-500/30 shadow-2xl rounded-3xl p-8 mb-8 flex flex-col items-center justify-center text-center relative overflow-hidden group">
-        <div className="absolute -right-10 -bottom-10 opacity-5 group-hover:rotate-12 transition-all duration-700">
-          <Clock size={250} className="text-indigo-500" />
-        </div>
-        <div className="relative z-10 w-full">
-          <h3 className="text-zinc-400 font-black text-xs uppercase tracking-[0.2em] mb-4 flex items-center justify-center gap-2">
-            <Clock className="text-indigo-500" size={16} /> Carga Horária Acumulada
-          </h3>
-          <div className="text-6xl md:text-7xl font-black text-zinc-100 mb-2 tabular-nums">
-            {stats.horasEstudadas}<span className="text-2xl md:text-3xl text-indigo-500 ml-1">h</span>
-          </div>
-          <div className="text-2xl md:text-3xl font-black text-zinc-400 mb-6 tabular-nums">
-            {stats.minutosEstudados}<span className="text-sm md:text-base text-zinc-500 ml-1">mins</span>
-          </div>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Histórico Global de Horas</span>
-          </div>
-        </div>
-      </Card>
 
 
 
