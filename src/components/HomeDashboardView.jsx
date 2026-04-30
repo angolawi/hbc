@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/Card';
 import { Clock, Target, AlertTriangle, TrendingUp, BookOpen, CheckCircle, XCircle, Quote, MessageSquare, Trash2, Calendar, Zap, Flame, Crown, Medal, Users, Trophy } from 'lucide-react';
 import { pushData, pullAllData } from '../utils/dataSync';
@@ -32,199 +32,233 @@ export default function HomeDashboardView() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
   const { user, selectedMentee } = useAuth();
+  const hasFetchedRef = useRef(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user) return;
-      let rawHoras, rawEdital, cicloData, dailyGoalRaw, dailyMinsLogRaw, messagesRaw, rawGlobalStats;
+  const loadData = async () => {
+    if (!user) return;
+    let rawHoras, rawEdital, cicloData, dailyGoalRaw, dailyMinsLogRaw, messagesRaw, rawGlobalStats;
 
-      if (selectedMentee) {
-        const cloudData = await pullAllData(user, selectedMentee.id);
-        rawHoras = cloudData?.find(i => i.key === 'simpl_horas_estudadas')?.data;
-        rawEdital = cloudData?.find(i => i.key === 'simpl_edital')?.data;
-        cicloData = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
-        dailyGoalRaw = cloudData?.find(i => i.key === 'simpl_daily_goal')?.data;
-        dailyMinsLogRaw = cloudData?.find(i => i.key === 'simpl_daily_study_time')?.data;
-        rawGlobalStats = cloudData?.find(i => i.key === 'simpl_global_stats')?.data;
-        messagesRaw = cloudData?.find(i => i.key === 'simpl_messages')?.data || [];
-        setMessages(messagesRaw);
-      } else {
-        rawHoras = localStorage.getItem('simpl_horas_estudadas');
-        rawEdital = localStorage.getItem('simpl_edital');
-        cicloData = localStorage.getItem('simpl_ciclo');
-        dailyGoalRaw = localStorage.getItem('simpl_daily_goal');
-        dailyMinsLogRaw = localStorage.getItem('simpl_daily_study_time');
-        const savedMsg = localStorage.getItem('simpl_messages');
-        setMessages(savedMsg ? JSON.parse(savedMsg) : []);
-      }
+    if (selectedMentee) {
+      const cloudData = await pullAllData(user, selectedMentee.id);
+      rawHoras = cloudData?.find(i => i.key === 'simpl_horas_estudadas')?.data;
+      rawEdital = cloudData?.find(i => i.key === 'simpl_edital')?.data;
+      cicloData = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
+      dailyGoalRaw = cloudData?.find(i => i.key === 'simpl_daily_goal')?.data;
+      dailyMinsLogRaw = cloudData?.find(i => i.key === 'simpl_daily_study_time')?.data;
+      rawGlobalStats = cloudData?.find(i => i.key === 'simpl_global_stats')?.data;
+      messagesRaw = cloudData?.find(i => i.key === 'simpl_messages')?.data || [];
+      setMessages(messagesRaw);
+    } else {
+      rawHoras = localStorage.getItem('simpl_horas_estudadas');
+      rawEdital = localStorage.getItem('simpl_edital');
+      cicloData = localStorage.getItem('simpl_ciclo');
+      dailyGoalRaw = localStorage.getItem('simpl_daily_goal');
+      dailyMinsLogRaw = localStorage.getItem('simpl_daily_study_time');
 
-      const hardModeActive = localStorage.getItem('simpl_hard_mode') === 'true';
-      setIsHardMode(hardModeActive);
-
-      const source = hardModeActive ? dreadboardData : quotesData;
-      if (!randomQuote && source.frases && source.frases.length > 0) {
-        const idx = Math.floor(Math.random() * source.frases.length);
-        setRandomQuote(source.frases[idx]);
-      }
-
-      const mins = rawHoras ? parseInt(rawHoras, 10) : 0;
-      const hrs = Math.floor(mins / 60);
-      const remMins = mins % 60;
-
-      let discData = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
-
-      // Calcular dados com base no Edital Completo para garantir que métricas importadas apareçam
-      let totalCertas = 0;
-      let totalResolvidas = 0;
-      const disciplinasCalculadas = [];
-      const temasAvaliacao = [];
-      let totalTopicos = 0;
-      let f1Concluidos = 0;
-      let f2Concluidos = 0;
-      let f3Concluidos = 0;
-
-      try {
-        discData.forEach(disc => {
-          let discCertas = 0;
-          let discResolvidas = 0;
-
-          if (disc.weeklyStats) {
-            Object.values(disc.weeklyStats).forEach(w => {
-              discCertas += Number(w.certas) || 0;
-              discResolvidas += Number(w.resolvidas) || 0;
-            });
+      // Fallback seguro se o localStorage estiver vazio (corrige Race Condition)
+      if (!rawEdital && user && !hasFetchedRef.current) {
+        hasFetchedRef.current = true;
+        try {
+          const cloudData = await pullAllData(user);
+          if (cloudData && Array.isArray(cloudData)) {
+            rawHoras = cloudData.find(i => i.key === 'simpl_horas_estudadas')?.data;
+            rawEdital = cloudData.find(i => i.key === 'simpl_edital')?.data;
+            cicloData = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
+            dailyGoalRaw = cloudData.find(i => i.key === 'simpl_daily_goal')?.data;
+            dailyMinsLogRaw = cloudData.find(i => i.key === 'simpl_daily_study_time')?.data;
           }
-
-          if (disc.topicos && Array.isArray(disc.topicos)) {
-            totalTopicos += disc.topicos.length;
-            disc.topicos.forEach(topico => {
-              if (topico.fase1?.conclusao) f1Concluidos++;
-              if (topico.fase2?.conclusao) f2Concluidos++;
-              if (Number(topico.fase3?.resolvidas) > 0) f3Concluidos++;
-
-              let tCertas = 0;
-              let tResolvidas = 0;
-
-              ['fase1', 'fase2', 'fase3'].forEach(fase => {
-                if (topico[fase]) {
-                  tCertas += Number(topico[fase].certas) || 0;
-                  tResolvidas += Number(topico[fase].resolvidas) || 0;
-                }
-              });
-
-              discCertas += tCertas;
-              discResolvidas += tResolvidas;
-
-              if (tResolvidas > 0) {
-                const tPct = (tCertas / tResolvidas) * 100;
-                if (tPct < 70) {
-                  temasAvaliacao.push({
-                    id: topico.id,
-                    disciplina: disc.nome,
-                    texto: topico.texto,
-                    pct: tPct,
-                    resolvidas: tResolvidas,
-                    certas: tCertas
-                  });
-                }
-              }
-            });
-          }
-
-          totalCertas += discCertas;
-          totalResolvidas += discResolvidas;
-
-          let pct = 0;
-          if (discResolvidas > 0) {
-            pct = (discCertas / discResolvidas) * 100;
-          }
-
-          disciplinasCalculadas.push({
-            id: disc.id,
-            nome: disc.nome,
-            certas: discCertas,
-            resolvidas: discResolvidas,
-            pct: pct
-          });
-        });
-      } catch (err) {
-        console.error("Subject metrics computation failure:", err);
+        } catch (err) {
+          console.error("Erro no fallback de pullAllData:", err);
+        }
       }
 
-      temasAvaliacao.sort((a, b) => a.pct - b.pct);
-      const dsptotal = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
+      const savedMsg = localStorage.getItem('simpl_messages');
+      setMessages(savedMsg ? JSON.parse(savedMsg) : []);
+    }
 
-      let totalAllTopicos = 0;
-      let concluidoF1 = 0;
-      let concluidoF2 = 0;
-      let concluidoF3 = 0;
-      let minsF1 = 0;
-      let minsF2 = 0;
-      let minsF3 = 0;
+    const hardModeActive = localStorage.getItem('simpl_hard_mode') === 'true';
+    setIsHardMode(hardModeActive);
 
-      let allEdital = [];
-      try {
-        allEdital = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
-      } catch (e) {
-        console.error("Error parsing edital for progress calculation:", e);
-      }
-      if (!Array.isArray(allEdital)) allEdital = [];
+    const source = hardModeActive ? dreadboardData : quotesData;
+    if (!randomQuote && source.frases && source.frases.length > 0) {
+      const idx = Math.floor(Math.random() * source.frases.length);
+      setRandomQuote(source.frases[idx]);
+    }
 
-      allEdital.forEach(d => {
-        if (d.topicos) {
-          d.topicos.forEach(t => {
-            totalAllTopicos++;
-            if (t.fase1?.conclusao) concluidoF1++;
-            if (t.fase2?.conclusao) concluidoF2++;
-            if (t.fase3?.resolvidas > 0) concluidoF3++;
+    const mins = rawHoras ? parseInt(rawHoras, 10) : 0;
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
 
-            minsF1 += Number(t.fase1?.minutos) || 0;
-            minsF2 += Number(t.fase2?.minutos) || 0;
-            minsF3 += Number(t.fase3?.minutos) || 0;
+    let discData = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
+
+    // Calcular dados com base no Edital Completo para garantir que métricas importadas apareçam
+    let totalCertas = 0;
+    let totalResolvidas = 0;
+    const disciplinasCalculadas = [];
+    const temasAvaliacao = [];
+    let totalTopicos = 0;
+    let f1Concluidos = 0;
+    let f2Concluidos = 0;
+    let f3Concluidos = 0;
+
+    try {
+      discData.forEach(disc => {
+        let discCertas = 0;
+        let discResolvidas = 0;
+
+        if (disc.weeklyStats) {
+          Object.values(disc.weeklyStats).forEach(w => {
+            discCertas += Number(w.certas) || 0;
+            discResolvidas += Number(w.resolvidas) || 0;
           });
         }
+
+        if (disc.topicos && Array.isArray(disc.topicos)) {
+          totalTopicos += disc.topicos.length;
+          disc.topicos.forEach(topico => {
+            if (topico.fase1?.conclusao) f1Concluidos++;
+            if (topico.fase2?.conclusao) f2Concluidos++;
+            if (Number(topico.fase3?.resolvidas) > 0) f3Concluidos++;
+
+            let tCertas = 0;
+            let tResolvidas = 0;
+
+            ['fase1', 'fase2', 'fase3'].forEach(fase => {
+              if (topico[fase]) {
+                tCertas += Number(topico[fase].certas) || 0;
+                tResolvidas += Number(topico[fase].resolvidas) || 0;
+              }
+            });
+
+            discCertas += tCertas;
+            discResolvidas += tResolvidas;
+
+            if (tResolvidas > 0) {
+              const tPct = (tCertas / tResolvidas) * 100;
+              if (tPct < 70) {
+                temasAvaliacao.push({
+                  id: topico.id,
+                  disciplina: disc.nome,
+                  texto: topico.texto,
+                  pct: tPct,
+                  resolvidas: tResolvidas,
+                  certas: tCertas
+                });
+              }
+            }
+          });
+        }
+
+        totalCertas += discCertas;
+        totalResolvidas += discResolvidas;
+
+        let pct = 0;
+        if (discResolvidas > 0) {
+          pct = (discCertas / discResolvidas) * 100;
+        }
+
+        disciplinasCalculadas.push({
+          id: disc.id,
+          nome: disc.nome,
+          certas: discCertas,
+          resolvidas: discResolvidas,
+          pct: pct
+        });
       });
+    } catch (err) {
+      console.error("Subject metrics computation failure:", err);
+    }
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      let dailyMinsLog = {};
-      try {
-        if (dailyMinsLogRaw) dailyMinsLog = typeof dailyMinsLogRaw === 'string' ? JSON.parse(dailyMinsLogRaw) : dailyMinsLogRaw;
-      } catch (e) { }
+    temasAvaliacao.sort((a, b) => a.pct - b.pct);
+    const dsptotal = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
 
-      const todayMinsValue = Number(dailyMinsLog[todayStr]) || 0;
-      const parsedDailyGoal = parseFloat(dailyGoalRaw);
-      const dailyGoalValue = isNaN(parsedDailyGoal) ? 0 : parsedDailyGoal;
+    let totalAllTopicos = 0;
+    let concluidoF1 = 0;
+    let concluidoF2 = 0;
+    let concluidoF3 = 0;
+    let minsF1 = 0;
+    let minsF2 = 0;
+    let minsF3 = 0;
 
-      setStats({
-        horasEstudadas: hrs,
-        minutosEstudados: remMins,
-        certas: totalCertas,
-        resolvidas: totalResolvidas,
-        desempenhoTotal: dsptotal,
-        disciplinas: disciplinasCalculadas.sort((a, b) => b.resolvidas - a.resolvidas).slice(0, 5),
-        temasAtencao: temasAvaliacao.slice(0, 10),
-        fase1Pct: totalAllTopicos > 0 ? (concluidoF1 / totalAllTopicos) * 100 : 0,
-        fase2Pct: totalAllTopicos > 0 ? (concluidoF2 / totalAllTopicos) * 100 : 0,
-        fase3Pct: totalAllTopicos > 0 ? (concluidoF3 / totalAllTopicos) * 100 : 0,
-        fase1Mins: minsF1,
-        fase2Mins: minsF2,
-        fase3Mins: minsF3,
-        totalTopicos: totalAllTopicos,
-        dailyGoal: dailyGoalValue,
-        todayMins: todayMinsValue
-      });
-      if (!selectedMentee && !rawGlobalStats && (totalCertas > 0 || totalResolvidas > 0)) {
-        const statsObj = {
-          totalCertas,
-          totalResolvidas,
-          desempenhoTotal: totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0,
-          updatedAt: new Date().toISOString()
-        };
-        pushData('simpl_global_stats', statsObj, user);
+    let allEdital = [];
+    try {
+      allEdital = rawEdital ? (typeof rawEdital === 'string' ? JSON.parse(rawEdital) : rawEdital) : [];
+    } catch (e) {
+      console.error("Error parsing edital for progress calculation:", e);
+    }
+    if (!Array.isArray(allEdital)) allEdital = [];
+
+    allEdital.forEach(d => {
+      if (d.topicos) {
+        d.topicos.forEach(t => {
+          totalAllTopicos++;
+          if (t.fase1?.conclusao) concluidoF1++;
+          if (t.fase2?.conclusao) concluidoF2++;
+          if (t.fase3?.resolvidas > 0) concluidoF3++;
+
+          minsF1 += Number(t.fase1?.minutos) || 0;
+          minsF2 += Number(t.fase2?.minutos) || 0;
+          minsF3 += Number(t.fase3?.minutos) || 0;
+        });
+      }
+    });
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    let dailyMinsLog = {};
+    try {
+      if (dailyMinsLogRaw) dailyMinsLog = typeof dailyMinsLogRaw === 'string' ? JSON.parse(dailyMinsLogRaw) : dailyMinsLogRaw;
+    } catch (e) { }
+
+    const todayMinsValue = Number(dailyMinsLog[todayStr]) || 0;
+    const parsedDailyGoal = parseFloat(dailyGoalRaw);
+    const dailyGoalValue = isNaN(parsedDailyGoal) ? 0 : parsedDailyGoal;
+
+    setStats({
+      horasEstudadas: hrs,
+      minutosEstudados: remMins,
+      certas: totalCertas,
+      resolvidas: totalResolvidas,
+      desempenhoTotal: dsptotal,
+      disciplinas: disciplinasCalculadas.sort((a, b) => b.resolvidas - a.resolvidas).slice(0, 5),
+      temasAtencao: temasAvaliacao.slice(0, 10),
+      fase1Pct: totalAllTopicos > 0 ? (concluidoF1 / totalAllTopicos) * 100 : 0,
+      fase2Pct: totalAllTopicos > 0 ? (concluidoF2 / totalAllTopicos) * 100 : 0,
+      fase3Pct: totalAllTopicos > 0 ? (concluidoF3 / totalAllTopicos) * 100 : 0,
+      fase1Mins: minsF1,
+      fase2Mins: minsF2,
+      fase3Mins: minsF3,
+      totalTopicos: totalAllTopicos,
+      dailyGoal: dailyGoalValue,
+      todayMins: todayMinsValue
+    });
+
+    if (!selectedMentee && !rawGlobalStats && (totalCertas > 0 || totalResolvidas > 0)) {
+      const statsObj = {
+        totalCertas,
+        totalResolvidas,
+        desempenhoTotal: totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0,
+        updatedAt: new Date().toISOString()
+      };
+      pushData('simpl_global_stats', statsObj, user);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+
+    const handleSync = (e) => {
+      if (e.detail.type === 'pull' && e.detail.status === 'success') {
+        const isViewingMentee = !!selectedMentee;
+        const eventIsForMentee = !!e.detail.isMentee;
+        
+        if (isViewingMentee === eventIsForMentee && !hasFetchedRef.current) {
+          loadData();
+        }
       }
     };
 
-      loadData();
+    window.addEventListener('sync-status', handleSync);
+    return () => window.removeEventListener('sync-status', handleSync);
   }, [selectedMentee, user]);
 
   // Competition & Leaderboard Logic

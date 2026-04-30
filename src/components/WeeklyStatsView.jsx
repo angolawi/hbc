@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -13,6 +13,7 @@ export default function WeeklyStatsView() {
   const [disciplines, setDisciplines] = useState([]);
   const [weeks, setWeeks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const hasFetchedRef = useRef(false);
   
   const [newWeekName, setNewWeekName] = useState('');
 
@@ -26,11 +27,27 @@ export default function WeeklyStatsView() {
         setDisciplines(savedEdital);
         setWeeks(savedWeeks);
       } else {
-        const savedEdital = JSON.parse(localStorage.getItem('simpl_edital') || '[]');
-        const savedWeeks = JSON.parse(localStorage.getItem('simpl_weeks') || '[]');
+        let savedEdital = JSON.parse(localStorage.getItem('simpl_edital') || '[]');
+        let savedWeeks = JSON.parse(localStorage.getItem('simpl_weeks') || '[]');
+
+        // Fallback seguro se o localStorage estiver vazio (corrige Race Condition)
+        if (savedEdital.length === 0 && user && !hasFetchedRef.current) {
+          hasFetchedRef.current = true;
+          try {
+            const cloudData = await pullAllData(user);
+            if (cloudData && Array.isArray(cloudData)) {
+              savedEdital = cloudData.find(i => i.key === 'simpl_edital')?.data || [];
+              savedWeeks = cloudData.find(i => i.key === 'simpl_weeks')?.data || [];
+            }
+          } catch (err) {
+            console.error("Erro no fallback de pullAllData (WeeklyStats):", err);
+          }
+        }
+
         setDisciplines(savedEdital);
         setWeeks(savedWeeks);
       }
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -42,8 +59,13 @@ export default function WeeklyStatsView() {
     loadData();
 
     const handleSync = (e) => {
-      if (e.detail.type === 'pull' && e.detail.status === 'success' && !selectedMentee) {
-        loadData();
+      if (e.detail.type === 'pull' && e.detail.status === 'success') {
+        const isViewingMentee = !!selectedMentee;
+        const eventIsForMentee = !!e.detail.isMentee;
+        
+        if (isViewingMentee === eventIsForMentee && !hasFetchedRef.current) {
+          loadData();
+        }
       }
     };
     window.addEventListener('sync-status', handleSync);
@@ -142,10 +164,20 @@ export default function WeeklyStatsView() {
     return ((cert / res) * 100).toFixed(2) + '%';
   };
 
-  const groupedDisciplinas = {
-    'Conhecimentos Gerais': disciplines.filter(d => d.categoria === 'Conhecimentos Gerais' || d.categoria === 'Gerais' || !d.categoria),
-    'Conhecimentos Específicos': disciplines.filter(d => d.categoria === 'Conhecimentos Específicos' || d.categoria === 'Específicos')
-  };
+  const groupedDisciplinas = {};
+  if (Array.isArray(disciplines)) {
+    disciplines.forEach(d => {
+      let cat = d.categoria || 'Conhecimentos Gerais';
+      if (cat === 'Gerais') cat = 'Conhecimentos Gerais';
+      if (cat === 'Específicos') cat = 'Conhecimentos Específicos';
+      
+      if (!groupedDisciplinas[cat]) {
+        groupedDisciplinas[cat] = [];
+      }
+      groupedDisciplinas[cat].push(d);
+    });
+  }
+
 
   const getCategoryTotalForWeek = (categoryDiscs, weekId) => {
     let tCertas = 0; let tResolvidas = 0;
