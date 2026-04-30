@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input, Textarea } from './ui/Input';
-import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, ShieldCheck } from 'lucide-react';
+import { Plus, Trash, GraduationCap, FileText, ChevronDown, ChevronUp, BrainCircuit, Pencil, ShieldCheck, Share2 } from 'lucide-react';
 import { pushData, pullAllData } from '../utils/dataSync';
 import { supabase } from '../utils/supabase';
 import EditalProgressImportModal from './modals/EditalProgressImportModal';
@@ -45,67 +45,67 @@ export default function EditalView() {
     const loadData = async () => {
       if (selectedMentee) {
         setLoading(true);
-        const data = await pullAllData(user, selectedMentee.id);
+        setEditingTemplateId(null);
+        setIsCreatingNew(false);
+        setTemplateName('');
+        
+        try {
+          const data = await pullAllData(user, selectedMentee.id);
+          const savedEdital = data?.find(i => i.key === 'simpl_edital')?.data;
+          if (savedEdital) setDisciplines(savedEdital);
 
-        const savedEdital = data?.find(i => i.key === 'simpl_edital')?.data;
-        if (savedEdital) setDisciplines(savedEdital);
-
-        const savedCiclo = data?.find(i => i.key === 'simpl_ciclo')?.data;
-        if (savedCiclo) {
-          const blocks = Array.isArray(savedCiclo) ? savedCiclo : (savedCiclo.blocks || []);
-          setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
-          
-          const tagsMap = {};
-          blocks.forEach(b => {
-            if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag;
-          });
-          setCycleTagsMap(tagsMap);
+          const savedCiclo = data?.find(i => i.key === 'simpl_ciclo')?.data;
+          if (savedCiclo) {
+            const blocks = Array.isArray(savedCiclo) ? savedCiclo : (savedCiclo.blocks || []);
+            setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
+            const tagsMap = {};
+            blocks.forEach(b => { if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag; });
+            setCycleTagsMap(tagsMap);
+          }
+        } catch (err) {
+          console.error("Erro ao carregar dados do mentorado:", err);
         }
         setLoading(false);
       } else {
-        let savedData = localStorage.getItem('simpl_edital');
-        let savedCicloLocal = localStorage.getItem('simpl_ciclo');
+        // Modo Aluno: Carrega local primeiro para velocidade, depois busca nuvem
+        const loadFromLocal = () => {
+          const localEdital = localStorage.getItem('simpl_edital');
+          const localCiclo = localStorage.getItem('simpl_ciclo');
+          
+          if (localEdital) {
+            try { setDisciplines(JSON.parse(localEdital)); } catch (e) {}
+          }
+          if (localCiclo) {
+            try {
+              const parsed = JSON.parse(localCiclo);
+              const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
+              setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
+              const tagsMap = {};
+              blocks.forEach(b => { if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag; });
+              setCycleTagsMap(tagsMap);
+            } catch (e) {}
+          }
+        };
 
-        // Fallback seguro se o localStorage estiver vazio
-        if (!savedData && user && !hasFetchedRef.current) {
+        loadFromLocal();
+
+        if (user && !hasFetchedRef.current) {
           hasFetchedRef.current = true;
-          try {
-            const cloudData = await pullAllData(user);
+          pullAllData(user).then(cloudData => {
             if (cloudData && Array.isArray(cloudData)) {
               const cloudEdital = cloudData.find(i => i.key === 'simpl_edital')?.data;
-              const cloudCiclo = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
+              if (cloudEdital) setDisciplines(cloudEdital);
               
-              if (cloudEdital) {
-                savedData = typeof cloudEdital === 'string' ? cloudEdital : JSON.stringify(cloudEdital);
-              }
+              const cloudCiclo = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
               if (cloudCiclo) {
-                savedCicloLocal = typeof cloudCiclo === 'string' ? cloudCiclo : JSON.stringify(cloudCiclo);
+                const blocks = Array.isArray(cloudCiclo) ? cloudCiclo : (cloudCiclo.blocks || []);
+                setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
+                const tagsMap = {};
+                blocks.forEach(b => { if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag; });
+                setCycleTagsMap(tagsMap);
               }
             }
-          } catch (err) {
-            console.error("Erro no fallback de pullAllData (Edital):", err);
-          }
-        }
-
-        if (savedData) {
-          try {
-            const parsedData = JSON.parse(savedData);
-            setDisciplines(parsedData);
-          } catch (e) {
-            console.error("Error parsing local edital:", e);
-          }
-        }
-
-        if (savedCicloLocal) {
-          const parsed = JSON.parse(savedCicloLocal);
-          const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
-          setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
-          
-          const tagsMap = {};
-          blocks.forEach(b => {
-            if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag;
-          });
-          setCycleTagsMap(tagsMap);
+          }).catch(err => console.error("Erro no background pull:", err));
         }
       }
     };
@@ -116,8 +116,23 @@ export default function EditalView() {
         const isViewingMentee = !!selectedMentee;
         const eventIsForMentee = !!e.detail.isMentee;
         
-        if (isViewingMentee === eventIsForMentee && !hasFetchedRef.current) {
-          loadData();
+        // Se houve uma sincronização de sucesso para o contexto que estamos vendo, recarregamos
+        if (isViewingMentee === eventIsForMentee) {
+          const localEdital = localStorage.getItem('simpl_edital');
+          if (localEdital) {
+            try { setDisciplines(JSON.parse(localEdital)); } catch (e) {}
+          }
+          const localCiclo = localStorage.getItem('simpl_ciclo');
+          if (localCiclo) {
+            try {
+              const parsed = JSON.parse(localCiclo);
+              const blocks = Array.isArray(parsed) ? parsed : (parsed.blocks || []);
+              setActiveCycleDiscs([...new Set(blocks.map(b => normalizeText(b.nome)))]);
+              const tagsMap = {};
+              blocks.forEach(b => { if (b.nome && b.tag) tagsMap[normalizeText(b.nome)] = b.tag; });
+              setCycleTagsMap(tagsMap);
+            } catch (e) {}
+          }
         }
       }
     };
@@ -196,16 +211,117 @@ export default function EditalView() {
   };
 
   const applyTemplate = async (templateData) => {
+    // Existing logic unchanged
     if (!templateData || !Array.isArray(templateData)) {
       return alert("Este template parece estar vazio ou corrompido.", "error");
     }
-
     const confirmed = await confirm(`Isso substituirá todo o edital atual deste aluno por este template (${templateData.length} disciplinas). Continuar?`);
     if (confirmed) {
-      // Usa a função de storage para garantir que vá para o Supabase do aluno
       await saveToStorage(templateData);
+      // Propaga as tags do template para o ciclo ativo do aluno (se houver)
+      if (selectedMentee) {
+        try {
+          const cloudData = await pullAllData(user, selectedMentee.id);
+          const cycle = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
+          if (cycle) {
+            const blocks = Array.isArray(cycle) ? cycle : (cycle.blocks || []);
+            let changed = false;
+            blocks.forEach(b => {
+              const matchedTemplateDisc = templateData.find(td => normalizeText(td.nome) === normalizeText(b.nome));
+              if (matchedTemplateDisc && matchedTemplateDisc.tag) {
+                b.tag = matchedTemplateDisc.tag;
+                changed = true;
+              }
+            });
+            if (changed) {
+              const finalCycle = Array.isArray(cycle) ? blocks : { ...cycle, blocks };
+              await pushData('simpl_ciclo', finalCycle, user, selectedMentee.id);
+            }
+          }
+        } catch (err) {
+          console.error("Erro ao sincronizar tags do template com o ciclo:", err);
+        }
+      }
       alert("Template aplicado e sincronizado com sucesso!", "success");
       setShowTemplates(false);
+    }
+  };
+
+  // Helper: mescla o template com o edital existente mantendo progresso
+  const mergeTemplateIntoEdital = (current, template) => {
+    const map = {};
+    current.forEach(d => { map[normalizeText(d.nome)] = d; });
+    const merged = template.map(t => {
+      const key = normalizeText(t.nome);
+      if (map[key]) {
+        const existing = map[key];
+        return {
+          ...existing,
+          tag: t.tag ?? existing.tag,
+          categoria: t.categoria ?? existing.categoria,
+          nome: t.nome
+        };
+      }
+      return { ...t, topicos: [], weeklyStats: {} };
+    });
+    // inclui disciplinas que estavam no edital mas não no template (preserva)
+    current.forEach(d => {
+      if (!template.find(td => normalizeText(td.nome) === normalizeText(d.nome))) {
+        merged.push(d);
+      }
+    });
+    return merged;
+  };
+
+  // Propaga o template editado para todos os mentorados
+  const propagateTemplateToAll = async (templateData) => {
+    if (!templateData?.length) return alert('Template vazio.', 'error');
+    try {
+      const { data: mentees, error: menteeErr } = await supabase
+        .from('mentorships')
+        .select('student_id')
+        .eq('mentor_id', user.id);
+      if (menteeErr) throw menteeErr;
+      const studentIds = mentees.map(m => m.student_id);
+      const results = await Promise.allSettled(
+        studentIds.map(async (sid) => {
+          const cloud = await pullAllData(user, sid);
+          const currentEdital = cloud?.find(i => i.key === 'simpl_edital')?.data || [];
+          const mergedEdital = mergeTemplateIntoEdital(currentEdital, templateData);
+          await pushData('simpl_edital', mergedEdital, user, sid);
+          // Atualiza ciclo (tags)
+          const cycle = cloud?.find(i => i.key === 'simpl_ciclo')?.data;
+          if (cycle) {
+            const blocks = Array.isArray(cycle) ? cycle : (cycle.blocks || []);
+            let changed = false;
+            blocks.forEach(b => {
+              const tmplDisc = templateData.find(td => normalizeText(td.nome) === normalizeText(b.nome));
+              if (tmplDisc && tmplDisc.tag && b.tag !== tmplDisc.tag) {
+                b.tag = tmplDisc.tag;
+                changed = true;
+              }
+            });
+            if (changed) {
+              const finalCycle = Array.isArray(cycle) ? blocks : { ...cycle, blocks };
+              await pushData('simpl_ciclo', finalCycle, user, sid);
+            }
+          }
+        })
+      );
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length) {
+        console.error('Falha ao propagar para alguns alunos:', failed);
+        alert(`Atualizado em ${studentIds.length - failed.length}/${studentIds.length} alunos.`, 'warning');
+      } else {
+        alert(`Template propagado com sucesso para ${studentIds.length} mentorados.`, 'success');
+      }
+      // Notifica UI dos mentorados
+      window.dispatchEvent(new CustomEvent('sync-status', {
+        detail: { type: 'pull', status: 'success', isMentee: true }
+      }));
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao propagar template.', 'error');
     }
   };
 
@@ -222,7 +338,11 @@ export default function EditalView() {
 
   const saveToStorage = async (data) => {
     setDisciplines(data);
-    localStorage.setItem('simpl_edital', typeof data === 'string' ? data : JSON.stringify(data));
+
+    // Não polui o localStorage do mentor com dados do mentorado
+    if (!selectedMentee) {
+      localStorage.setItem('simpl_edital', typeof data === 'string' ? data : JSON.stringify(data));
+    }
 
     let totalCertas = 0;
     let totalResolvidas = 0;
@@ -255,9 +375,12 @@ export default function EditalView() {
       updatedAt: new Date().toISOString()
     };
 
-    if (user && !editingTemplateId) {
-      await pushData('simpl_edital', data, user, selectedMentee?.id);
-      await pushData('simpl_global_stats', statsObj, user, selectedMentee?.id);
+    if (user) {
+      // Força push se for mentorado, ignorando estado de template
+      if (!editingTemplateId || selectedMentee) {
+        await pushData('simpl_edital', data, user, selectedMentee?.id);
+        await pushData('simpl_global_stats', statsObj, user, selectedMentee?.id);
+      }
     }
   };
 
@@ -372,6 +495,37 @@ export default function EditalView() {
       return d;
     });
     saveToStorage(updated);
+    propagateTagAcrossApp(discId, newTag);
+  };
+
+  const propagateTagAcrossApp = async (discId, newTag) => {
+    if (editingTemplateId) return;
+
+    const updateCycle = async (data, targetId) => {
+      const blocks = Array.isArray(data) ? data : (data.blocks || []);
+      let changed = false;
+      blocks.forEach(b => {
+        if (b.id === discId) { b.tag = newTag; changed = true; }
+      });
+      if (changed) {
+        const finalCycle = Array.isArray(data) ? blocks : { ...data, blocks };
+        if (!targetId) localStorage.setItem('simpl_ciclo', JSON.stringify(finalCycle));
+        await pushData('simpl_ciclo', finalCycle, user, targetId);
+      }
+    };
+
+    try {
+      if (selectedMentee) {
+        const cloudData = await pullAllData(user, selectedMentee.id);
+        const cycle = cloudData?.find(i => i.key === 'simpl_ciclo')?.data;
+        if (cycle) await updateCycle(cycle, selectedMentee.id);
+      } else {
+        const cycleRaw = localStorage.getItem('simpl_ciclo');
+        if (cycleRaw) await updateCycle(JSON.parse(cycleRaw));
+      }
+    } catch (e) {
+      console.error("Erro ao propagar tag:", e);
+    }
   };
 
   const propagateRenameAcrossApp = async (discId, oldName, newName) => {
@@ -442,10 +596,10 @@ export default function EditalView() {
         const cycleRaw = localStorage.getItem('simpl_ciclo');
         const instRaw = localStorage.getItem('simpl_cycle_instances');
         const progRaw = localStorage.getItem('simpl_grid_progress');
-        
+
         if (cycleRaw) await updateCycle(JSON.parse(cycleRaw));
         if (instRaw || progRaw) await updateGrid(
-          instRaw ? JSON.parse(instRaw) : [], 
+          instRaw ? JSON.parse(instRaw) : [],
           progRaw ? JSON.parse(progRaw) : {}
         );
       }
@@ -465,7 +619,7 @@ export default function EditalView() {
     });
     // Garante o save no edital primeiro
     await saveToStorage(updated);
-    
+
     // Propaga para o resto do app (Ciclo/Grid)
     if (oldName && oldName !== newName) {
       await propagateRenameAcrossApp(discId, oldName, newName);
@@ -579,7 +733,7 @@ export default function EditalView() {
           id: Date.now().toString() + '-' + i,
           nome: line.replace(/:$/, '').trim().toUpperCase(),
           categoria: 'Conhecimentos Específicos',
-          tag: 'teorica',
+          tag: line.toLowerCase().includes('ingl') ? 'analitica' : 'teorica',
           currentPhase: 1,
           topicos: []
         };
@@ -615,46 +769,46 @@ export default function EditalView() {
 
   const handleMergeProgress = (extractedTopics, targetDisciplineId) => {
     const normalizeTopic = (str) => {
-       // Remove all accents, special chars and spaces
-       return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      // Remove all accents, special chars and spaces
+      return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     };
 
     let matchCount = 0;
-    
+
     const updatedDisciplines = disciplines.map(disc => {
       if (targetDisciplineId && disc.id !== targetDisciplineId) return disc;
       let discChanged = false;
       const newTopicos = disc.topicos.map(top => {
         const normTop = normalizeTopic(top.texto);
-        
+
         const match = extractedTopics.find(et => {
-           const normEt = normalizeTopic(et.originalText);
-           // Ensure it's a substantive match
-           if (normTop.length < 5 || normEt.length < 5) return false;
-           return normTop.includes(normEt) || normEt.includes(normTop);
+          const normEt = normalizeTopic(et.originalText);
+          // Ensure it's a substantive match
+          if (normTop.length < 5 || normEt.length < 5) return false;
+          return normTop.includes(normEt) || normEt.includes(normTop);
         });
 
         if (match) {
           matchCount++;
           discChanged = true;
           return {
-             ...top,
-             fase1: {
-               inicio: match.metrics.fase1.inicio || top.fase1?.inicio || '',
-               conclusao: match.metrics.fase1.conclusao || top.fase1?.conclusao || '',
-               certas: match.metrics.fase1.certas || top.fase1?.certas || '',
-               resolvidas: match.metrics.fase1.resolvidas || top.fase1?.resolvidas || ''
-             },
-             fase2: {
-               inicio: match.metrics.fase2.inicio || top.fase2?.inicio || '',
-               conclusao: match.metrics.fase2.conclusao || top.fase2?.conclusao || '',
-               certas: match.metrics.fase2.certas || top.fase2?.certas || '',
-               resolvidas: match.metrics.fase2.resolvidas || top.fase2?.resolvidas || ''
-             },
-             fase3: {
-               certas: match.metrics.fase3.certas || top.fase3?.certas || '',
-               resolvidas: match.metrics.fase3.resolvidas || top.fase3?.resolvidas || ''
-             }
+            ...top,
+            fase1: {
+              inicio: match.metrics.fase1.inicio || top.fase1?.inicio || '',
+              conclusao: match.metrics.fase1.conclusao || top.fase1?.conclusao || '',
+              certas: match.metrics.fase1.certas || top.fase1?.certas || '',
+              resolvidas: match.metrics.fase1.resolvidas || top.fase1?.resolvidas || ''
+            },
+            fase2: {
+              inicio: match.metrics.fase2.inicio || top.fase2?.inicio || '',
+              conclusao: match.metrics.fase2.conclusao || top.fase2?.conclusao || '',
+              certas: match.metrics.fase2.certas || top.fase2?.certas || '',
+              resolvidas: match.metrics.fase2.resolvidas || top.fase2?.resolvidas || ''
+            },
+            fase3: {
+              certas: match.metrics.fase3.certas || top.fase3?.certas || '',
+              resolvidas: match.metrics.fase3.resolvidas || top.fase3?.resolvidas || ''
+            }
           };
         }
         return top;
@@ -686,15 +840,15 @@ export default function EditalView() {
           </p>
         </div>
         <div className="flex gap-2">
-           {isMentor && selectedMentee && (
-             <Button
-               onClick={() => setShowProgressImportModal(true)}
-               variant="outline"
-               className="border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 hidden md:flex items-center gap-2"
-             >
-               <FileText size={16} /> Importar Progresso (Planilha)
-             </Button>
-           )}
+          {isMentor && selectedMentee && (
+            <Button
+              onClick={() => setShowProgressImportModal(true)}
+              variant="outline"
+              className="border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 hidden md:flex items-center gap-2"
+            >
+              <FileText size={16} /> Importar Progresso (Planilha)
+            </Button>
+          )}
         </div>
       </header>
 
@@ -750,19 +904,19 @@ export default function EditalView() {
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
           <div className="relative">
             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-                 <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
-               </h2>
-               {!selectedMentee && (
-                 <Button 
-                   variant="ghost" 
-                   size="sm" 
-                   onClick={() => { setIsCreatingNew(false); setEditingTemplateId(null); }}
-                   className="text-zinc-500 hover:text-zinc-300"
-                 >
-                   Cancelar e Voltar para Biblioteca
-                 </Button>
-               )}
+              <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
+              </h2>
+              {!selectedMentee && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setIsCreatingNew(false); setEditingTemplateId(null); }}
+                  className="text-zinc-500 hover:text-zinc-300"
+                >
+                  Cancelar e Voltar para Biblioteca
+                </Button>
+              )}
             </div>
             <p className="text-sm text-zinc-400 mb-6 max-w-4xl">
               Cole integralmente o texto do bloco de "Conteúdo Programático" do seu edital. O sistema identificará automaticamente as disciplinas (escritas em <strong>CAIXA ALTA</strong>) e segmentará a hierarquia das sub-matérias baseado em prefixos numéricos (Ex: 1, 1.1, 1.2.1).
@@ -788,23 +942,23 @@ export default function EditalView() {
 
       {/* Main Content Area */}
       <div className="animate-in slide-in-from-top-4 fade-in duration-300">
-        
+
         {/* If Mentor is not editing anything, show Library Landing */}
         {isMentor && !selectedMentee && !editingTemplateId && !isCreatingNew ? (
           <div className="max-w-5xl mx-auto space-y-8">
             <Card className="p-12 bg-zinc-950 border-dashed border-zinc-800 text-center flex flex-col items-center gap-6 rounded-3xl">
-               <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-400">
-                  <FileText size={32} />
-               </div>
-               <div>
-                  <h2 className="text-2xl font-black text-zinc-100 mb-2">Biblioteca de Templates Master</h2>
-                  <p className="text-zinc-500 max-w-md mx-auto">Gerencie seus editais padrão ou crie um novo do zero para atribuir aos seus alunos.</p>
-               </div>
-               <div className="flex gap-4">
-                  <Button onClick={startNewTemplate} className="bg-white text-zinc-950 font-black px-8 h-12 hover:bg-zinc-200">
-                    CRIAR NOVO TEMPLATE
-                  </Button>
-               </div>
+              <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-400">
+                <FileText size={32} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-zinc-100 mb-2">Biblioteca de Templates Master</h2>
+                <p className="text-zinc-500 max-w-md mx-auto">Gerencie seus editais padrão ou crie um novo do zero para atribuir aos seus alunos.</p>
+              </div>
+              <div className="flex gap-4">
+                <Button onClick={startNewTemplate} className="bg-white text-zinc-950 font-black px-8 h-12 hover:bg-zinc-200">
+                  CRIAR NOVO TEMPLATE
+                </Button>
+              </div>
             </Card>
 
             {templates.length > 0 && (
@@ -924,6 +1078,15 @@ export default function EditalView() {
                     {editingTemplateId ? 'Salvar Alterações' : 'Salvar Novo Template'}
                   </Button>
                   {(editingTemplateId || isCreatingNew) && (
+                    <Button
+                      variant="outline"
+                      className="ml-2 h-14 px-6 text-indigo-400 border-indigo-500"
+                      onClick={() => propagateTemplateToAll(disciplines)}
+                    >
+                      <Share2 size={16} className="mr-1" /> Propagar para Todos
+                    </Button>
+                  )}
+                  {(editingTemplateId || isCreatingNew) && (
                     <Button onClick={() => { setEditingTemplateId(null); setIsCreatingNew(false); setTemplateName(''); }} variant="outline" className="h-14 px-6 text-zinc-500 border-zinc-800">
                       CANCELAR
                     </Button>
@@ -935,8 +1098,8 @@ export default function EditalView() {
         )}
       </div>
 
-      <EditalProgressImportModal 
-        isOpen={showProgressImportModal} 
+      <EditalProgressImportModal
+        isOpen={showProgressImportModal}
         onClose={() => setShowProgressImportModal(false)}
         disciplines={disciplines}
         onImport={handleMergeProgress}
@@ -975,8 +1138,8 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
   const phase = discipline.currentPhase || 1;
   const isPhase2 = phase === 2;
   const isPhase3 = phase === 3;
-  
-  const effectiveTag = cycleTagsMap[normalizeText(discipline.nome)] || discipline.tag || '';
+
+  const effectiveTag = discipline.tag || cycleTagsMap[normalizeText(discipline.nome)] || '';
 
   const cardBorderClass = isPhase3 ? "border-rose-500/50 shadow-rose-900/20" : isPhase2 ? "border-amber-500/50 shadow-amber-900/20" : "border-zinc-800 shadow-xl";
   const headerBgClass = isPhase3 ? "bg-rose-950/20" : isPhase2 ? "bg-amber-950/20" : "bg-zinc-900";
@@ -1044,8 +1207,9 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
                   </select>
 
                   <select
-                    value={(effectiveTag || '').toLowerCase().includes('teor') ? 'teorica' : 
-                           ((effectiveTag || '').toLowerCase().includes('calc') || (effectiveTag || '').toLowerCase().includes('exat')) ? 'calculo' : 'analitica'}
+                    value={(effectiveTag || '').toLowerCase().includes('teor') ? 'teorica' :
+                      ((effectiveTag || '').toLowerCase().includes('calc') || (effectiveTag || '').toLowerCase().includes('exat')) ? 'calculo' :
+                        (effectiveTag || '').toLowerCase().includes('analit') ? 'analitica' : 'teorica'}
                     onChange={(e) => onChangeTag(e.target.value)}
                     className="bg-zinc-800 border border-zinc-700 text-zinc-400 tracking-wider text-[10px] uppercase rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-zinc-700 font-black"
                   >
@@ -1063,8 +1227,9 @@ function DisciplineBlock({ discipline, selectedMentee, isMentor, onRemove, onCha
                     Fase {phase}
                   </span>
                   <span className="bg-zinc-800 text-zinc-500 tracking-wider text-[10px] uppercase rounded px-2 py-0.5 font-bold border border-zinc-700/50 flex items-center gap-1">
-                    {(effectiveTag || '').toLowerCase().includes('teor') ? '🟢 Teórica' : 
-                     ((effectiveTag || '').toLowerCase().includes('calc') || (effectiveTag || '').toLowerCase().includes('exat')) ? '🔴 Exatas' : '🟡 Analítica'}
+                    {(effectiveTag || '').toLowerCase().includes('teor') ? '🟢 Teórica' :
+                      ((effectiveTag || '').toLowerCase().includes('calc') || (effectiveTag || '').toLowerCase().includes('exat')) ? '🔴 Exatas' :
+                        (effectiveTag || '').toLowerCase().includes('analit') ? '🟡 Analítica' : '🟢 Teórica'}
                   </span>
                 </>
               )}
@@ -1161,12 +1326,12 @@ function TopicAccordion({ topico, onRemove, onUpdate, onEditText, selectedMentee
   const p1 = calcPercentage(topico.fase1?.certas, topico.fase1?.resolvidas);
   const p2 = calcPercentage(topico.fase2?.certas, topico.fase2?.resolvidas);
   const p3 = calcPercentage(topico.fase3?.certas, topico.fase3?.resolvidas);
-  
-  const hasData = (topico.fase1?.conclusao) || 
-                  (Number(topico.fase1?.resolvidas) > 0) ||
-                  (topico.fase2?.conclusao) || 
-                  (Number(topico.fase2?.resolvidas) > 0) ||
-                  (Number(topico.fase3?.resolvidas) > 0);
+
+  const hasData = (topico.fase1?.conclusao) ||
+    (Number(topico.fase1?.resolvidas) > 0) ||
+    (topico.fase2?.conclusao) ||
+    (Number(topico.fase2?.resolvidas) > 0) ||
+    (Number(topico.fase3?.resolvidas) > 0);
 
   const getPillColor = (pct) => {
     if (pct === null) return 'bg-zinc-800 text-zinc-500';
