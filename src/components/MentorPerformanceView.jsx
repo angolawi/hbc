@@ -20,7 +20,7 @@ import { supabase } from '../utils/supabase';
 import { pullAllData } from '../utils/dataSync';
 
 export default function MentorPerformanceView() {
-  const { user } = useAuth();
+  const { user, setSelectedMentee } = useAuth();
   const [loading, setLoading] = useState(true);
   const [consolidatedData, setConsolidatedData] = useState([]);
 
@@ -72,15 +72,18 @@ export default function MentorPerformanceView() {
         const cycles = (cloudData || [])?.find(i => i.key === 'simpl_cycle_instances')?.data || [];
         const hours = (cloudData || [])?.find(i => i.key === 'simpl_horas_estudadas')?.data || 0;
         
-        // Calculate Weekly Minutes (last 7 days)
+        // Calculate Weekly Minutes (last 7 days and last 2 days)
         const dailyMinsLog = (cloudData || [])?.find(i => i.key === 'simpl_daily_study_time')?.data || {};
         let weeklyMins = 0;
+        let last2DaysMins = 0;
         const today = new Date();
         for (let i = 0; i < 7; i++) {
           const d = new Date(today);
           d.setDate(d.getDate() - i);
           const dateStr = d.toISOString().split('T')[0];
-          weeklyMins += Number(dailyMinsLog[dateStr]) || 0;
+          const mins = Number(dailyMinsLog[dateStr]) || 0;
+          weeklyMins += mins;
+          if (i < 2) last2DaysMins += mins;
         }
 
         const displayName = m.profiles?.first_name 
@@ -95,9 +98,10 @@ export default function MentorPerformanceView() {
           performance,
           totalQuestions: totalResolvidas,
           correctQuestions: totalCertas,
-          cyclesCount: cycles.length,
           hours,
-          weeklyMins
+          weeklyMins,
+          last2DaysMins,
+          studiedToday: (Number(dailyMinsLog[new Date().toISOString().split('T')[0]]) || 0) > 0
         };
       }));
 
@@ -118,7 +122,15 @@ export default function MentorPerformanceView() {
     .filter(m => m.weeklyMins > 0)
     .slice(0, 3);
 
-  const attentions = consolidatedData.filter(m => (m.performance < 65 && m.totalQuestions > 0) || m.totalQuestions === 0);
+  const attentions = consolidatedData
+    .filter(m => (m.performance < 65 && m.totalQuestions > 0) || m.totalQuestions === 0 || m.last2DaysMins === 0)
+    .map(m => {
+      let reason = '';
+      if (m.totalQuestions === 0) reason = 'Sem questões';
+      else if (m.last2DaysMins === 0) reason = 'Inativo (2d)';
+      else if (m.performance < 65) reason = 'Baixo rendimento';
+      return { ...m, reason };
+    });
 
   if (loading) {
     return (
@@ -210,14 +222,22 @@ export default function MentorPerformanceView() {
           </h3>
           <div className="space-y-3 relative z-10">
             {attentions.length > 0 ? attentions.slice(0, 3).map(a => (
-              <div key={a.id} className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-2xl border border-rose-500/10">
+              <div 
+                key={a.id} 
+                onClick={() => setSelectedMentee({ id: a.id, email: a.email, displayName: a.displayName })}
+                className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-2xl border border-rose-500/10 cursor-pointer hover:bg-rose-500/5 hover:border-rose-500/30 transition-all group/item"
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-full bg-rose-800/30 flex items-center justify-center text-rose-400 font-bold text-[10px] uppercase">
                     {a.displayName[0]}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-zinc-100 truncate">{a.displayName}</span>
-                    <span className="text-[8px] text-zinc-500 uppercase font-black truncate">{a.targetContest}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[8px] text-zinc-500 uppercase font-black truncate">{a.targetContest}</span>
+                      <span className="text-[8px] text-rose-500/30 font-black">•</span>
+                      <span className="text-[8px] text-rose-400 font-black uppercase">{a.reason}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
@@ -234,7 +254,7 @@ export default function MentorPerformanceView() {
         {[
             { label: 'Média de Acerto', val: `${(consolidatedData.reduce((acc, curr) => acc + curr.performance, 0) / (consolidatedData.length || 1)).toFixed(1)}%`, icon: Target, color: 'text-emerald-500' },
             { label: 'Total Questões', val: consolidatedData.reduce((acc, curr) => acc + curr.totalQuestions, 0), icon: BarChart3, color: 'text-indigo-500' },
-            { label: 'Ciclos Rodados', val: consolidatedData.reduce((acc, curr) => acc + curr.cyclesCount, 0), icon: BrainCircuit, color: 'text-amber-500' },
+            { label: 'Ativos Hoje', val: `${consolidatedData.filter(m => m.studiedToday).length} / ${consolidatedData.length}`, icon: Flame, color: 'text-orange-500' },
             { label: 'Horas Totais', val: `${(consolidatedData.reduce((acc, curr) => acc + curr.hours, 0) / 60).toFixed(1)}h`, icon: Users, color: 'text-purple-500' },
         ].map((stat, i) => (
             <Card key={i} className="p-6 bg-zinc-900 border-zinc-800 shadow-xl rounded-2xl flex items-center gap-5">
@@ -265,7 +285,7 @@ export default function MentorPerformanceView() {
                 <th className="p-8">Aluno</th>
                 <th className="p-8">Questões Geral</th>
                 <th className="p-8 text-center">Rendimento %</th>
-                <th className="p-8 text-center">Carga Horária</th>
+                <th className="p-8 text-center">Carga Horária (Sem./Total)</th>
                 <th className="p-8 text-center">Ação</th>
               </tr>
             </thead>
@@ -276,7 +296,6 @@ export default function MentorPerformanceView() {
                     <div className="font-bold text-zinc-100 group-hover:text-indigo-400 transition-colors">{m.displayName}</div>
                     <div className="flex flex-col">
                         <div className="text-[10px] text-zinc-500 uppercase font-black">{m.targetContest}</div>
-                        <div className="text-[10px] text-zinc-600 font-bold">{m.cyclesCount} Ciclos Rodados</div>
                     </div>
                   </td>
                   <td className="p-8">
@@ -297,12 +316,21 @@ export default function MentorPerformanceView() {
                     </div>
                   </td>
                   <td className="p-8 text-center">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-800/50 text-zinc-300 rounded-lg text-xs font-bold border border-zinc-700/50">
-                      {Math.floor(m.hours / 60)}h {m.hours % 60}m
+                    <div className="flex flex-col items-center gap-1">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-[10px] font-black border border-indigo-500/20" title="Carga Horária Semanal (últimos 7 dias)">
+                            {Math.floor(m.weeklyMins / 60)}h {m.weeklyMins % 60}m
+                        </div>
+                        <div className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider">
+                            Total: {Math.floor(m.hours / 60)}h {m.hours % 60}m
+                        </div>
                     </div>
                   </td>
                   <td className="p-8 text-center">
-                    <button className="text-zinc-600 hover:text-indigo-400 transition-colors p-2" title="Ver Detalhes">
+                    <button 
+                      onClick={() => setSelectedMentee({ id: m.id, email: m.email, displayName: m.displayName })}
+                      className="text-zinc-600 hover:text-indigo-400 transition-all hover:scale-110 p-2" 
+                      title="Gerenciar Aluno"
+                    >
                         <ArrowRight size={20} />
                     </button>
                   </td>

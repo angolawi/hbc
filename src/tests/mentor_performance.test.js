@@ -65,4 +65,31 @@ describe('Lógica de Rendimento do Mentor', () => {
     expect(topEffort[2].displayName).toBe('Aluno A');
     expect(topEffort.find(m => m.id === '4')).toBeUndefined();
   });
+  it('Deve classificar corretamente os alunos que requerem atenção', () => {
+    const mockStudents = [
+      { id: '1', displayName: 'A', performance: 80, totalQuestions: 100, last2DaysMins: 60 }, // OK
+      { id: '2', displayName: 'B', performance: 50, totalQuestions: 100, last2DaysMins: 60 }, // Baixo rendimento
+      { id: '3', displayName: 'C', performance: 0, totalQuestions: 0, last2DaysMins: 60 },   // Sem questões
+      { id: '4', displayName: 'D', performance: 90, totalQuestions: 100, last2DaysMins: 0 },  // Inativo (2d)
+      { id: '5', displayName: 'E', performance: 50, totalQuestions: 0, last2DaysMins: 0 },    // Sem questões (prioridade 1)
+      { id: '6', displayName: 'F', performance: 50, totalQuestions: 100, last2DaysMins: 0 },  // Inativo (prioridade 2)
+    ];
+
+    const attentions = mockStudents
+      .filter(m => (m.performance < 65 && m.totalQuestions > 0) || m.totalQuestions === 0 || m.last2DaysMins === 0)
+      .map(m => {
+        let reason = '';
+        if (m.totalQuestions === 0) reason = 'Sem questões';
+        else if (m.last2DaysMins === 0) reason = 'Inativo (2d)';
+        else if (m.performance < 65) reason = 'Baixo rendimento';
+        return { ...m, reason };
+      });
+
+    expect(attentions.length).toBe(5);
+    expect(attentions.find(a => a.id === '2').reason).toBe('Baixo rendimento');
+    expect(attentions.find(a => a.id === '3').reason).toBe('Sem questões');
+    expect(attentions.find(a => a.id === '4').reason).toBe('Inativo (2d)');
+    expect(attentions.find(a => a.id === '5').reason).toBe('Sem questões'); // Prioridade Sem questões
+    expect(attentions.find(a => a.id === '6').reason).toBe('Inativo (2d)'); // Prioridade Inativo > Baixo rendimento
+  });
 });
