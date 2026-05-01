@@ -63,7 +63,7 @@ function App() {
     if (isMentor && !selectedMentee && activeTab === 'home') {
       setActiveTab('mentor_stats');
     }
-    if (isMentor && selectedMentee && activeTab === 'mentor') {
+    if (isMentor && selectedMentee && (activeTab === 'mentor' || activeTab === 'mentor_stats')) {
       setActiveTab('home');
     }
   }, [isMentor, selectedMentee, activeTab]);
