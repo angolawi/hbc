@@ -157,15 +157,15 @@ export default function HomeDashboardView() {
     if (selectedMentee) {
       if (hasFetchedRef.current === selectedMentee.id) return;
       hasFetchedRef.current = selectedMentee.id;
-      
+
       try {
-        const cloudData = await pullAllData(user, selectedMentee.id); 
-        
+        const cloudData = await pullAllData(user, selectedMentee.id);
+
         const freshEdital = cloudData?.find(i => i.key === 'simpl_edital')?.data;
         const freshGoal = cloudData?.find(i => i.key === 'simpl_daily_goal')?.data;
         const freshMins = cloudData?.find(i => i.key === 'simpl_daily_study_time')?.data;
         const freshMsg = cloudData?.find(i => i.key === 'simpl_messages')?.data || [];
-        
+
         setMessages(freshMsg);
         computeStats(freshEdital, freshGoal, freshMins);
       } catch (err) {
@@ -186,12 +186,12 @@ export default function HomeDashboardView() {
         hasFetchedRef.current = user.id;
         try {
           await pullAllData(user);
-          
+
           const localEdital = localStorage.getItem('simpl_edital');
           const localGoal = localStorage.getItem('simpl_daily_goal');
           const localMins = localStorage.getItem('simpl_daily_study_time');
           const localMsg = localStorage.getItem('simpl_messages');
-          
+
           if (localMsg) setMessages(JSON.parse(localMsg));
           computeStats(localEdital, localGoal, localMins);
         } catch (err) {
@@ -202,7 +202,7 @@ export default function HomeDashboardView() {
 
     const hardModeActive = localStorage.getItem('simpl_hard_mode') === 'true';
     setIsHardMode(hardModeActive);
-    
+
     const showArenaActive = localStorage.getItem('simpl_show_arena') === 'true';
     setShowArena(showArenaActive);
 
@@ -221,16 +221,16 @@ export default function HomeDashboardView() {
       if (e.detail.type === 'pull' && e.detail.status === 'success') {
         const isViewingMentee = !!selectedMentee;
         const eventIsForMentee = !!e.detail.isMentee;
-        
+
         if (isViewingMentee === eventIsForMentee) {
           // Atualiza estados usando o local storage que acabou de ser sincronizado
           const localEdital = localStorage.getItem('simpl_edital');
           const localGoal = localStorage.getItem('simpl_daily_goal');
           const localMins = localStorage.getItem('simpl_daily_study_time');
           const localMsg = localStorage.getItem('simpl_messages');
-          
+
           if (localMsg) setMessages(JSON.parse(localMsg));
-          
+
           const localShowArena = localStorage.getItem('simpl_show_arena') === 'true';
           setShowArena(localShowArena);
 
@@ -254,8 +254,8 @@ export default function HomeDashboardView() {
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .maybeSingle(); 
-        
+          .maybeSingle();
+
         if (!profile) return;
         setUserProfile(profile);
 
@@ -277,7 +277,7 @@ export default function HomeDashboardView() {
             .order('study_minutes', { ascending: false })
             .order('questions_solved', { ascending: false })
             .limit(5);
-          
+
           if (competitors) setLeaderboard(competitors);
         }
       } catch (e) {
@@ -338,14 +338,14 @@ export default function HomeDashboardView() {
           <div className="absolute -right-20 -top-20 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-1000 rotate-12">
             <Trophy size={400} className="text-indigo-400" />
           </div>
-          
+
           <div className="relative z-10">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="px-2 py-0.5 bg-indigo-500 text-[8px] font-black uppercase tracking-widest rounded text-white shadow-lg shadow-indigo-500/20">Arena HBC</div>
                   <h2 className="text-xl font-black text-zinc-100 tracking-tight flex items-center gap-3">
-                    <Crown className="text-amber-500" size={24} /> 
+                    <Crown className="text-amber-500" size={24} />
                     Ranking: {userProfile.target_contest}
                   </h2>
                 </div>
@@ -353,7 +353,7 @@ export default function HomeDashboardView() {
                   Compita com outros <Users size={12} className="inline mx-1" /> {leaderboard.length}+ alunos mascarados para sua segurança
                 </p>
               </div>
-              
+
               <div className="hidden md:block text-right">
                 <span className="text-[10px] font-black text-zinc-600 block uppercase tracking-tighter mb-1">Atualizado agora</span>
                 <div className="h-1 w-24 bg-zinc-800 rounded-full overflow-hidden">
@@ -366,15 +366,14 @@ export default function HomeDashboardView() {
               {leaderboard.map((comp, idx) => {
                 const isMe = comp.id === user.id;
                 const pos = idx + 1;
-                
+
                 return (
-                  <div 
-                    key={comp.id} 
-                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${
-                      isMe 
-                      ? 'bg-indigo-600/10 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-[1.02]' 
-                      : 'bg-zinc-950/40 border-zinc-800/50 hover:border-zinc-700'
-                    }`}
+                  <div
+                    key={comp.id}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${isMe
+                        ? 'bg-indigo-600/10 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-[1.02]'
+                        : 'bg-zinc-950/40 border-zinc-800/50 hover:border-zinc-700'
+                      }`}
                   >
                     <div className="w-10 h-10 shrink-0 flex items-center justify-center font-black text-lg italic text-zinc-500">
                       {pos === 1 && <Medal className="text-amber-400" size={28} />}
@@ -382,7 +381,7 @@ export default function HomeDashboardView() {
                       {pos === 3 && <Medal className="text-orange-400" size={22} />}
                       {pos > 3 && `#${pos}`}
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={`font-black text-sm uppercase tracking-widest ${isMe ? 'text-indigo-400' : 'text-zinc-100'}`}>
@@ -391,16 +390,16 @@ export default function HomeDashboardView() {
                         {isMe && <span className="text-[8px] font-black bg-indigo-500 text-white px-1.5 py-0.5 rounded tracking-tighter">VOCÊ</span>}
                       </div>
                       <div className="flex items-center gap-3 mt-1 opacity-60">
-                         <div className="flex items-center gap-1">
-                            <CheckCircle2 size={10} />
-                            <span className="text-[10px] font-bold">{comp.questions_solved || 0} questões</span>
-                         </div>
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 size={10} />
+                          <span className="text-[10px] font-bold">{comp.questions_solved || 0} questões</span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                       <span className="text-[10px] font-black text-zinc-500 block uppercase tracking-widest">Aproveitamento</span>
-                       <span className="text-lg font-black text-zinc-200 tabular-nums">{(comp.avg_performance || 0).toFixed(1)}%</span>
+                      <span className="text-[10px] font-black text-zinc-500 block uppercase tracking-widest">Aproveitamento</span>
+                      <span className="text-lg font-black text-zinc-200 tabular-nums">{(comp.avg_performance || 0).toFixed(1)}%</span>
                     </div>
                   </div>
                 );
@@ -534,7 +533,7 @@ export default function HomeDashboardView() {
           <Target size={180} className="text-emerald-500" />
         </div>
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-          
+
           {/* Main Percentage Drop */}
           <div className="flex-1 w-full border-b md:border-b-0 md:border-r border-zinc-800 pb-6 md:pb-0 md:pr-8">
             <h3 className="text-zinc-400 font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -556,14 +555,14 @@ export default function HomeDashboardView() {
               </span>
               <span className="text-xl font-black text-emerald-400 tabular-nums">{stats.certas}</span>
             </div>
-            
+
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
                 <XCircle size={16} className="text-rose-500" /> Erradas
               </span>
               <span className="text-xl font-black text-rose-400 tabular-nums">{erradas}</span>
             </div>
-            
+
             <div className="w-full bg-zinc-950 h-3 flex rounded-full overflow-hidden shadow-inner border border-zinc-800/50">
               <div className="bg-emerald-500 h-full transition-all duration-1000 shadow-[0_0_10px_#10b981]" style={{ width: `${stats.resolvidas > 0 ? (stats.certas / stats.resolvidas) * 100 : 0}%` }}></div>
               <div className="bg-rose-500 h-full transition-all duration-1000" style={{ width: `${stats.resolvidas > 0 ? (erradas / stats.resolvidas) * 100 : 0}%` }}></div>
@@ -572,7 +571,7 @@ export default function HomeDashboardView() {
               Total Resolvidas: <span className="text-zinc-300 mx-1">{stats.resolvidas}</span>
             </p>
           </div>
-          
+
         </div>
       </Card>
 
