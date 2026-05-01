@@ -11,7 +11,8 @@ export const SYNC_KEYS = [
   'simpl_messages',
   'simpl_hard_mode',
   'simpl_daily_goal',
-  'simpl_daily_study_time'
+  'simpl_daily_study_time',
+  'simpl_show_arena'
 ];
 
 const SYNC_HISTORY_KEY = 'simpl_sync_history';
