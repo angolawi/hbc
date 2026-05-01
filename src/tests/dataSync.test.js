@@ -120,6 +120,29 @@ describe('DataSync Utility', () => {
       );
       consoleSpy.mockRestore();
     });
+
+    it('deve bloquear o push de dados vazios em chaves protegidas (edital)', async () => {
+      supabase.auth.getSession.mockResolvedValue({ data: { session: { user: mockUser } } });
+      const upsertMock = vi.fn().mockResolvedValue({ error: null });
+      supabase.from.mockReturnValue({ upsert: upsertMock });
+
+      await pushData('simpl_edital', [], mockUser);
+      expect(upsertMock).not.toHaveBeenCalled();
+    });
+
+    it('deve permitir o push de dados vazios em chaves whitelisted (mensagens, ciclo, etc)', async () => {
+      supabase.auth.getSession.mockResolvedValue({ data: { session: { user: mockUser } } });
+      const upsertMock = vi.fn().mockResolvedValue({ error: null });
+      supabase.from.mockReturnValue({ upsert: upsertMock });
+
+      // simpl_messages está no whitelist
+      await pushData('simpl_messages', [], mockUser);
+      expect(upsertMock).toHaveBeenCalled();
+
+      // simpl_ciclo está no whitelist
+      await pushData('simpl_ciclo', {}, mockUser);
+      expect(upsertMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('smartSync', () => {
@@ -238,22 +261,49 @@ describe('DataSync Utility', () => {
       
       vi.useRealTimers();
     });
+
+    it('NUNCA deve sobrescrever dados da nuvem com dados locais vazios (Proteção de Logoff)', async () => {
+      const cloudTime = new Date('2023-01-01T10:00:00Z').toISOString();
+      const cloudData = { real: 'content' };
+      
+      // Simula local storage vazio (ou resetado)
+      localStorageMock['simpl_edital'] = ''; 
+      
+      const mockSelect = {
+        eq: vi.fn().mockResolvedValue({
+          data: [{ key: 'simpl_edital', data: cloudData, updated_at: cloudTime }],
+          error: null
+        })
+      };
+      supabase.from.mockReturnValue({
+        select: vi.fn().mockReturnValue(mockSelect),
+        upsert: vi.fn().mockResolvedValue({ error: null })
+      });
+
+      await smartSync(mockUser);
+
+      // Verificação 1: NÃO deve ter chamado upsert (push)
+      expect(supabase.from().upsert).not.toHaveBeenCalled();
+
+      // Verificação 2: Deve ter RESTAURADO o dado da nuvem no local
+      expect(localStorage.setItem).toHaveBeenCalledWith('simpl_edital', JSON.stringify(cloudData));
+    });
   });
 
   describe('Histórico de Sincronização', () => {
-    it('deve manter apenas os últimos 20 eventos', async () => {
+    it('deve manter apenas os últimos 100 eventos', async () => {
       supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
       supabase.from.mockReturnValue({
         upsert: vi.fn().mockResolvedValue({ error: null }),
       });
 
-      // Simula 25 pushes
-      for (let i = 0; i < 25; i++) {
+      // Simula 110 pushes
+      for (let i = 0; i < 110; i++) {
         await pushData('simpl_edital', { i }, { id: '1' });
       }
 
       const history = getSyncHistory();
-      expect(history.length).toBe(20);
+      expect(history.length).toBe(100);
     });
   });
 });
