@@ -16,6 +16,7 @@ export default function SettingsView() {
   const [targetContest, setTargetContest] = useState('');
   const [hardMode, setHardMode] = useState(false);
   const [dailyGoal, setDailyGoal] = useState('');
+  const [showArena, setShowArena] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -35,6 +36,9 @@ export default function SettingsView() {
 
     const localDailyGoal = localStorage.getItem('simpl_daily_goal') || '';
     setDailyGoal(localDailyGoal);
+
+    const localShowArena = localStorage.getItem('simpl_show_arena') === 'true';
+    setShowArena(localShowArena);
   }, [user]);
 
   const handleUpdateProfile = async () => {
@@ -271,6 +275,31 @@ export default function SettingsView() {
                   className={`w-14 h-8 rounded-full transition-all duration-300 relative ${hardMode ? 'bg-rose-600' : 'bg-zinc-800'}`}
                 >
                   <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 ${hardMode ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between p-6 bg-indigo-500/5 rounded-2xl border border-indigo-500/20">
+                <div className="flex-1 pr-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="text-indigo-400 font-black uppercase tracking-widest text-xs">Arena HBC</h4>
+                  </div>
+                  <p className="text-zinc-500 text-[10px] leading-relaxed max-w-sm">
+                    Exibe o ranking de competição entre alunos que estudam para o mesmo concurso no seu Dashboard.
+                  </p>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const newVal = !showArena;
+                    setShowArena(newVal);
+                    localStorage.setItem('simpl_show_arena', newVal.toString());
+                    if (user) {
+                      await pushData('simpl_show_arena', newVal, user);
+                    }
+                  }}
+                  className={`w-14 h-8 rounded-full transition-all duration-300 relative ${showArena ? 'bg-indigo-600' : 'bg-zinc-800'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 ${showArena ? 'left-7' : 'left-1'}`} />
                 </button>
               </div>
 

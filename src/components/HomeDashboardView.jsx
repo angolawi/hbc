@@ -24,6 +24,7 @@ export default function HomeDashboardView() {
     dailyGoal: 0,
     todayMins: 0
   });
+  const [showArena, setShowArena] = useState(false);
   const [randomQuote, setRandomQuote] = useState("");
   const [messages, setMessages] = useState([]);
   const [isHardMode, setIsHardMode] = useState(false);
@@ -201,6 +202,10 @@ export default function HomeDashboardView() {
 
     const hardModeActive = localStorage.getItem('simpl_hard_mode') === 'true';
     setIsHardMode(hardModeActive);
+    
+    const showArenaActive = localStorage.getItem('simpl_show_arena') === 'true';
+    setShowArena(showArenaActive);
+
     const source = hardModeActive ? dreadboardData : quotesData;
     if (!randomQuote && source.frases && source.frases.length > 0) {
       const idx = Math.floor(Math.random() * source.frases.length);
@@ -225,6 +230,10 @@ export default function HomeDashboardView() {
           const localMsg = localStorage.getItem('simpl_messages');
           
           if (localMsg) setMessages(JSON.parse(localMsg));
+          
+          const localShowArena = localStorage.getItem('simpl_show_arena') === 'true';
+          setShowArena(localShowArena);
+
           computeStats(localEdital, localGoal, localMins);
         }
       }
@@ -324,7 +333,7 @@ export default function HomeDashboardView() {
       </header>
 
       {/* Arena HBC - Competição de Mentorados */}
-      {userProfile?.target_contest && leaderboard.length > 1 && (
+      {showArena && userProfile?.target_contest && leaderboard.length > 1 && (
         <Card className="bg-zinc-900 border-indigo-500/30 shadow-2xl rounded-3xl p-8 mb-8 relative overflow-hidden group">
           <div className="absolute -right-20 -top-20 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-1000 rotate-12">
             <Trophy size={400} className="text-indigo-400" />
