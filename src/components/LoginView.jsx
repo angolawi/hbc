@@ -53,7 +53,11 @@ export default function LoginView() {
           
           // Use the invitation info if we want to delete it or keep it as 'accepted'
           // For now, let's just delete it to keep things clean
-          await supabase.from('invitations').delete().eq('id', inv.id);
+          try {
+            await supabase.from('invitations').delete().eq('id', inv.id);
+          } catch (delErr) {
+            console.warn("Could not delete invitation record:", delErr);
+          }
         }
 
         if (authData?.session) {

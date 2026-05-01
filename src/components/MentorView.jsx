@@ -17,7 +17,10 @@ import {
   Send, 
   Calendar, 
   Mail, 
-  XCircle 
+  XCircle,
+  PauseCircle,
+  PlayCircle,
+  Activity
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { smartSync, pushData } from '../utils/dataSync';
@@ -49,7 +52,7 @@ export default function MentorView() {
     try {
       const { data, error } = await supabase
         .from('mentorships')
-        .select('id, student_id, profiles(email, first_name, last_name, target_contest)')
+        .select('id, student_id, is_active, profiles(email, first_name, last_name, target_contest)')
         .eq('mentor_id', user.id);
 
       if (error) throw error;
@@ -69,6 +72,7 @@ export default function MentorView() {
           email: m.profiles?.email,
           displayName: name,
           targetContest: m.profiles?.target_contest || null,
+          isActive: m.is_active ?? true,
           student: studentObj
         };
       }));
@@ -181,8 +185,8 @@ export default function MentorView() {
       fetchInvitations();
       alert("Convite revogado.", "info");
     } catch (e) {
-      console.error(e);
-      alert("Erro ao revogar convite.");
+      console.error("Erro detalhado ao revogar convite:", e);
+      alert(e.message || "Erro ao revogar convite. Verifique as permissões no Supabase.");
     }
   };
 
@@ -193,6 +197,25 @@ export default function MentorView() {
       fetchMentees();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const toggleMenteeStatus = async (id, currentStatus) => {
+    const action = currentStatus ? "colocar em hiato" : "reativar o acompanhamento de";
+    if (!confirm(`Deseja ${action} este aluno?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('mentorships')
+        .update({ is_active: !currentStatus })
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchMentees();
+      alert(currentStatus ? "Aluno em hiato." : "Acompanhamento reativado!", "success");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao alterar status do aluno.");
     }
   };
 
@@ -327,95 +350,169 @@ export default function MentorView() {
           <p className="text-zinc-600 text-sm max-w-sm">Comece vinculando seus mentorados usando o ID disponível no perfil de cada um.</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {mentees.map(m => {
-            const stats = menteeStats[m.student_id] || {};
-            return (
-              <Card key={m.id} className="p-6 bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-all flex flex-col gap-6 group rounded-3xl shadow-xl">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold uppercase transition-all group-hover:scale-110">
-                      {m.displayName[0]}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-zinc-100">{m.displayName}</h3>
-                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-0.5">{m.email}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => removeMentee(m.id)} className="text-zinc-700 hover:text-rose-500 transition-colors p-2">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-
-                {/* Concurso Alvo */}
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-500/8 border border-indigo-500/20">
-                  <div className="p-1.5 rounded-lg bg-indigo-500/15 shrink-0">
-                    <Trophy size={14} className="text-indigo-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="block text-[9px] font-black text-indigo-500/70 uppercase tracking-widest mb-0.5">Concurso Alvo</span>
-                    <span className="text-xs font-bold text-indigo-200 truncate block">
-                      {m.targetContest || 'Não definido pelo aluno'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
-                    <BarChart3 size={16} className="text-emerald-500 mb-2" />
-                    <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Horas Totais</span>
-                    <span className="text-lg font-bold text-zinc-100">{Math.floor((stats.hours || 0) / 60)}h {(stats.hours || 0) % 60}m</span>
-                  </div>
-                  <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
-                    <BrainCircuit size={16} className="text-amber-500 mb-2" />
-                    <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Ciclo Atual</span>
-                    <span className="text-xs font-bold text-zinc-100 truncate block">{stats.cycle || 'Não iniciado'}</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => setSelectedMentee(m.student)}
-                    className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 h-14 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2"
-                  >
-                    <ExternalLink size={16} />
-                    Gerenciar
-                  </Button>
-                  <Button 
-                    onClick={() => setActiveMuralId(activeMuralId === m.student_id ? null : m.student_id)}
-                    variant="outline"
-                    className={`px-4 h-14 rounded-2xl border-zinc-800 transition-all ${activeMuralId === m.student_id ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' : 'text-zinc-400'}`}
-                  >
-                    <MessageSquare size={18} />
-                  </Button>
-                </div>
-
-                {activeMuralId === m.student_id && (
-                  <div className="animate-in fade-in zoom-in-95 duration-200 mt-2">
-                    <div className="bg-zinc-950 p-4 rounded-2xl border border-indigo-500/20">
-                      <label className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 block">Mural de Recados</label>
-                      <textarea 
-                        value={muralText}
-                        onChange={e => setMuralText(e.target.value)}
-                        placeholder="Escreva um recado ou lembrete para este aluno..."
-                        className="w-full bg-zinc-900 border-none rounded-xl p-3 text-sm text-zinc-200 min-h-[80px] focus:ring-1 focus:ring-indigo-500 resize-none transition-all"
-                      />
-                      <div className="flex justify-end mt-2">
-                        <Button 
-                          onClick={() => sendRecado(m.student_id)}
-                          disabled={!muralText.trim()}
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white h-10 px-4 rounded-xl text-[10px] font-bold flex items-center gap-2 disabled:opacity-50"
+        <div className="space-y-12">
+          {/* Alunos em Acompanhamento */}
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <Activity className="text-emerald-500" size={20} />
+              <h2 className="text-lg font-bold text-white uppercase tracking-widest text-[11px]">Acompanhamento Ativo</h2>
+              <div className="h-px flex-1 bg-zinc-800/50" />
+              <span className="text-[10px] font-black text-zinc-600 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800">
+                {mentees.filter(m => m.isActive).length} ALUNOS
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {mentees.filter(m => m.isActive).map(m => {
+                const stats = menteeStats[m.student_id] || {};
+                return (
+                  <Card key={m.id} className="p-6 bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-all flex flex-col gap-6 group rounded-3xl shadow-xl">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold uppercase transition-all group-hover:scale-110">
+                          {m.displayName[0]}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-zinc-100">{m.displayName}</h3>
+                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-0.5">{m.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => toggleMenteeStatus(m.id, m.isActive)} 
+                          className="text-zinc-700 hover:text-amber-500 transition-colors p-2"
+                          title="Colocar em Hiato"
                         >
-                          <Send size={14} />
-                          Enviar Recado
-                        </Button>
+                          <PauseCircle size={18} />
+                        </button>
+                        <button 
+                          onClick={() => removeMentee(m.id)} 
+                          className="text-zinc-700 hover:text-rose-500 transition-colors p-2"
+                          title="Remover Aluno"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                )}
-              </Card>
-            )
-          })}
+
+                    {/* Concurso Alvo */}
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-500/8 border border-indigo-500/20">
+                      <div className="p-1.5 rounded-lg bg-indigo-500/15 shrink-0">
+                        <Trophy size={14} className="text-indigo-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[9px] font-black text-indigo-500/70 uppercase tracking-widest mb-0.5">Concurso Alvo</span>
+                        <span className="text-xs font-bold text-indigo-200 truncate block">
+                          {m.targetContest || 'Não definido pelo aluno'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
+                        <BarChart3 size={16} className="text-emerald-500 mb-2" />
+                        <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Horas Totais</span>
+                        <span className="text-lg font-bold text-zinc-100">{Math.floor((stats.hours || 0) / 60)}h {(stats.hours || 0) % 60}m</span>
+                      </div>
+                      <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
+                        <BrainCircuit size={16} className="text-amber-500 mb-2" />
+                        <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Ciclo Atual</span>
+                        <span className="text-xs font-bold text-zinc-100 truncate block">{stats.cycle || 'Não iniciado'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => setSelectedMentee(m.student)}
+                        className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 h-14 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+                      >
+                        <ExternalLink size={16} />
+                        Gerenciar
+                      </Button>
+                      <Button 
+                        onClick={() => setActiveMuralId(activeMuralId === m.student_id ? null : m.student_id)}
+                        variant="outline"
+                        className={`px-4 h-14 rounded-2xl border-zinc-800 transition-all ${activeMuralId === m.student_id ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' : 'text-zinc-400'}`}
+                      >
+                        <MessageSquare size={18} />
+                      </Button>
+                    </div>
+
+                    {activeMuralId === m.student_id && (
+                      <div className="animate-in fade-in zoom-in-95 duration-200 mt-2">
+                        <div className="bg-zinc-950 p-4 rounded-2xl border border-indigo-500/20">
+                          <label className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 block">Mural de Recados</label>
+                          <textarea 
+                            value={muralText}
+                            onChange={e => setMuralText(e.target.value)}
+                            placeholder="Escreva um recado ou lembrete para este aluno..."
+                            className="w-full bg-zinc-900 border-none rounded-xl p-3 text-sm text-zinc-200 min-h-[80px] focus:ring-1 focus:ring-indigo-500 resize-none transition-all"
+                          />
+                          <div className="flex justify-end mt-2">
+                            <Button 
+                              onClick={() => sendRecado(m.student_id)}
+                              disabled={!muralText.trim()}
+                              className="bg-indigo-600 hover:bg-indigo-500 text-white h-10 px-4 rounded-xl text-[10px] font-bold flex items-center gap-2 disabled:opacity-50"
+                            >
+                              <Send size={14} />
+                              Enviar Recado
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Alunos em Hiato */}
+          {mentees.some(m => !m.isActive) && (
+            <div className="pt-8">
+              <div className="flex items-center gap-3 mb-6">
+                <PauseCircle className="text-zinc-500" size={20} />
+                <h2 className="text-lg font-bold text-zinc-400 uppercase tracking-widest text-[11px]">Alunos em Hiato</h2>
+                <div className="h-px flex-1 bg-zinc-800/50" />
+                <span className="text-[10px] font-black text-zinc-600 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800">
+                  {mentees.filter(m => !m.isActive).length} EM PAUSA
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {mentees.filter(m => !m.isActive).map(m => (
+                  <Card key={m.id} className="p-5 bg-zinc-950 border-zinc-900 flex flex-col gap-4 opacity-70 hover:opacity-100 transition-all rounded-[2rem]">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-600 font-bold uppercase">
+                          {m.displayName[0]}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-zinc-400 text-sm">{m.displayName}</h3>
+                          <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{m.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => toggleMenteeStatus(m.id, m.isActive)} 
+                          className="text-zinc-700 hover:text-emerald-500 transition-colors p-1.5"
+                          title="Reativar Acompanhamento"
+                        >
+                          <PlayCircle size={18} />
+                        </button>
+                        <button 
+                          onClick={() => removeMentee(m.id)} 
+                          className="text-zinc-700 hover:text-rose-500 transition-colors p-1.5"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

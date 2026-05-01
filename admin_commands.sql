@@ -37,3 +37,12 @@ group by p.email;
 
 -- 5. LIMPAR VÍNCULO DE UM ALUNO ESPECÍFICO (Se necessário)
 -- delete from mentorships where student_id = 'UUID-DO-ALUNO';
+
+
+-- 6. COLOCAR ALUNO EM HIATO / REATIVAR
+-- update mentorships set is_active = false where student_id = 'UUID-DO-ALUNO';
+-- update mentorships set is_active = true where student_id = 'UUID-DO-ALUNO';
+
+
+-- 7. ADICIONAR COLUNA IS_ACTIVE (Caso a tabela já exista)
+-- ALTER TABLE public.mentorships ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;

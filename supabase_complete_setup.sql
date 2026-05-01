@@ -50,12 +50,21 @@ create table if not exists public.mentorships (
   id uuid default gen_random_uuid() primary key,
   mentor_id uuid references auth.users not null,
   student_id uuid references public.profiles(id) not null,
+  is_active boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(mentor_id, student_id)
 );
 
+create table if not exists public.invitations (
+  id uuid default gen_random_uuid() primary key,
+  email text not null unique,
+  invited_by uuid references auth.users not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 alter table public.profiles enable row level security;
 alter table public.mentorships enable row level security;
+alter table public.invitations enable row level security;
 
 -- ------------------------------------------------------------
 -- 4. POLÍTICAS DE SEGURANÇA (RLS)
@@ -88,6 +97,21 @@ create policy "Mentors manage mentorships" on mentorships for all using (auth.ui
 
 drop policy if exists "Students see mentor" on mentorships;
 create policy "Students see mentor" on mentorships for select using (auth.uid() = student_id);
+
+-- INVITATIONS: Gestão
+drop policy if exists "Mentors manage their invitations" on invitations;
+create policy "Mentors manage their invitations" on invitations
+  for all using (auth.uid() = invited_by);
+
+drop policy if exists "Public can view invitations" on invitations;
+create policy "Public can view invitations" on invitations
+  for select using (true);
+
+drop policy if exists "Students can delete their own invitation" on invitations;
+create policy "Students can delete their own invitation" on invitations
+  for delete using (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE email = invitations.email)
+  );
 
 -- ------------------------------------------------------------
 -- 5. AUTOMAÇÃO (TRIGGERS)

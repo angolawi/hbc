@@ -33,8 +33,9 @@ export default function MentorPerformanceView() {
     try {
       const { data: membershipData, error } = await supabase
         .from('mentorships')
-        .select('student_id, profiles(email, first_name, last_name, target_contest)')
-        .eq('mentor_id', user.id);
+        .select('student_id, is_active, profiles(email, first_name, last_name, target_contest)')
+        .eq('mentor_id', user.id)
+        .eq('is_active', true);
 
       if (error) throw error;
 
