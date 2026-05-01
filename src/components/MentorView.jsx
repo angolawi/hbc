@@ -364,7 +364,7 @@ export default function MentorView() {
                   <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
                     <BarChart3 size={16} className="text-emerald-500 mb-2" />
                     <span className="block text-xs font-black text-zinc-500 uppercase tracking-tighter">Horas Totais</span>
-                    <span className="text-lg font-bold text-zinc-100">{stats.hours || 0}h</span>
+                    <span className="text-lg font-bold text-zinc-100">{Math.floor((stats.hours || 0) / 60)}h {(stats.hours || 0) % 60}m</span>
                   </div>
                   <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-800/50">
                     <BrainCircuit size={16} className="text-amber-500 mb-2" />

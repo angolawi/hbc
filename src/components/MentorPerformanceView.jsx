@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Trophy,
   Flame,
-  ArrowRight
+  ArrowRight,
+  Clock,
+  Zap
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { pullAllData } from '../utils/dataSync';
@@ -69,6 +71,17 @@ export default function MentorPerformanceView() {
         const performance = totalResolvidas > 0 ? (totalCertas / totalResolvidas) * 100 : 0;
         const cycles = (cloudData || [])?.find(i => i.key === 'simpl_cycle_instances')?.data || [];
         const hours = (cloudData || [])?.find(i => i.key === 'simpl_horas_estudadas')?.data || 0;
+        
+        // Calculate Weekly Minutes (last 7 days)
+        const dailyMinsLog = (cloudData || [])?.find(i => i.key === 'simpl_daily_study_time')?.data || {};
+        let weeklyMins = 0;
+        const today = new Date();
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(today);
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          weeklyMins += Number(dailyMinsLog[dateStr]) || 0;
+        }
 
         const displayName = m.profiles?.first_name 
             ? `${m.profiles.first_name} ${m.profiles.last_name || ''}`
@@ -83,7 +96,8 @@ export default function MentorPerformanceView() {
           totalQuestions: totalResolvidas,
           correctQuestions: totalCertas,
           cyclesCount: cycles.length,
-          hours
+          hours,
+          weeklyMins
         };
       }));
 
@@ -95,7 +109,15 @@ export default function MentorPerformanceView() {
     }
   };
 
-  const praises = consolidatedData.filter(m => m.performance >= 80 || m.hours > 100);
+  const topPerformance = [...consolidatedData]
+    .sort((a, b) => b.performance - a.performance)
+    .slice(0, 3);
+    
+  const topEffort = [...consolidatedData]
+    .sort((a, b) => b.weeklyMins - a.weeklyMins)
+    .filter(m => m.weeklyMins > 0)
+    .slice(0, 3);
+
   const attentions = consolidatedData.filter(m => (m.performance < 65 && m.totalQuestions > 0) || m.totalQuestions === 0);
 
   if (loading) {
@@ -121,62 +143,88 @@ export default function MentorPerformanceView() {
         <p className="text-zinc-500 text-sm font-medium">Dashboard consolidado para tomada de decisão estratégica.</p>
       </header>
 
-      {/* Praises and Attentions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-        {/* Praise Card */}
-        <Card className="p-8 bg-emerald-500/5 border-emerald-500/20 rounded-[2rem] relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Trophy size={120} className="text-emerald-500" />
+      {/* Highlights Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+        {/* Top Performance Card */}
+        <Card className="p-6 bg-emerald-500/5 border-emerald-500/20 rounded-[2rem] relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Trophy size={100} className="text-emerald-500" />
           </div>
-          <h3 className="text-emerald-400 font-black uppercase tracking-[0.2em] text-xs mb-6 flex items-center gap-2">
-            <Flame size={16} /> 
-            Destaques Positivos (Elite)
+          <h3 className="text-emerald-400 font-black uppercase tracking-[0.2em] text-[10px] mb-6 flex items-center gap-2">
+            <Flame size={14} /> 
+            Top Rendimento
           </h3>
-          <div className="space-y-4 relative z-10">
-            {praises.length > 0 ? praises.slice(0, 3).map(p => (
-              <div key={p.id} className="flex items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-emerald-500/10">
+          <div className="space-y-3 relative z-10">
+            {topPerformance.length > 0 ? topPerformance.map(p => (
+              <div key={p.id} className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-2xl border border-emerald-500/10">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-emerald-950 font-bold text-xs uppercase">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-emerald-950 font-bold text-[10px] uppercase">
                     {p.displayName[0]}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-zinc-100">{p.displayName}</span>
-                    <span className="text-[9px] text-zinc-500 uppercase font-black">{p.targetContest}</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-zinc-100 truncate">{p.displayName}</span>
+                    <span className="text-[8px] text-zinc-500 uppercase font-black truncate">{p.targetContest}</span>
                   </div>
                 </div>
-                <span className="text-emerald-400 font-black">{p.performance.toFixed(1)}%</span>
+                <span className="text-emerald-400 font-black text-xs">{p.performance.toFixed(1)}%</span>
               </div>
-            )) : <p className="text-zinc-600 text-xs italic">Nenhum aluno atingiu os critérios de elite ainda.</p>}
+            )) : <p className="text-zinc-600 text-[10px] italic">Nenhum dado de rendimento disponível.</p>}
+          </div>
+        </Card>
+
+        {/* Top Effort Card */}
+        <Card className="p-6 bg-indigo-500/5 border-indigo-500/20 rounded-[2rem] relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Zap size={100} className="text-indigo-500" />
+          </div>
+          <h3 className="text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px] mb-6 flex items-center gap-2">
+            <Clock size={14} /> 
+            Top Esforço (Últimos 7 dias)
+          </h3>
+          <div className="space-y-3 relative z-10">
+            {topEffort.length > 0 ? topEffort.map(p => (
+              <div key={p.id} className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-2xl border border-indigo-500/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center text-indigo-950 font-bold text-[10px] uppercase">
+                    {p.displayName[0]}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-zinc-100 truncate">{p.displayName}</span>
+                    <span className="text-[8px] text-zinc-500 uppercase font-black truncate">{p.targetContest}</span>
+                  </div>
+                </div>
+                <span className="text-indigo-400 font-black text-xs">{Math.floor(p.weeklyMins / 60)}h {p.weeklyMins % 60}m</span>
+              </div>
+            )) : <p className="text-zinc-600 text-[10px] italic">Nenhum estudo registrado nos últimos 7 dias.</p>}
           </div>
         </Card>
 
         {/* Attention Card */}
-        <Card className="p-8 bg-rose-500/5 border-rose-500/20 rounded-[2rem] relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            <AlertTriangle size={120} className="text-rose-500" />
+        <Card className="p-6 bg-rose-500/5 border-rose-500/20 rounded-[2rem] relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+            <AlertTriangle size={100} className="text-rose-500" />
           </div>
-          <h3 className="text-rose-400 font-black uppercase tracking-[0.2em] text-xs mb-6 flex items-center gap-2">
-            <Activity size={16} /> 
-            Atenção Requerida (Risco)
+          <h3 className="text-rose-400 font-black uppercase tracking-[0.2em] text-[10px] mb-6 flex items-center gap-2">
+            <Activity size={14} /> 
+            Atenção Requerida
           </h3>
-          <div className="space-y-4 relative z-10">
+          <div className="space-y-3 relative z-10">
             {attentions.length > 0 ? attentions.slice(0, 3).map(a => (
-              <div key={a.id} className="flex items-center justify-between p-4 bg-zinc-950/50 rounded-2xl border border-rose-500/10">
+              <div key={a.id} className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-2xl border border-rose-500/10">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-rose-800/30 flex items-center justify-center text-rose-400 font-bold text-xs uppercase">
+                  <div className="w-7 h-7 rounded-full bg-rose-800/30 flex items-center justify-center text-rose-400 font-bold text-[10px] uppercase">
                     {a.displayName[0]}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-zinc-100">{a.displayName}</span>
-                    <span className="text-[9px] text-zinc-500 uppercase font-black">{a.targetContest}</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-zinc-100 truncate">{a.displayName}</span>
+                    <span className="text-[8px] text-zinc-500 uppercase font-black truncate">{a.targetContest}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                    <span className="text-rose-400 font-black">{a.performance.toFixed(1)}%</span>
-                    <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Baixo Rendimento</span>
+                    <span className="text-rose-400 font-black text-xs">{a.performance.toFixed(1)}%</span>
                 </div>
               </div>
-            )) : <p className="text-zinc-600 text-xs italic">Todos os alunos estão operando acima da margem crítica.</p>}
+            )) : <p className="text-zinc-600 text-[10px] italic">Todos os alunos estão operando bem.</p>}
           </div>
         </Card>
       </div>
@@ -187,7 +235,7 @@ export default function MentorPerformanceView() {
             { label: 'Média de Acerto', val: `${(consolidatedData.reduce((acc, curr) => acc + curr.performance, 0) / (consolidatedData.length || 1)).toFixed(1)}%`, icon: Target, color: 'text-emerald-500' },
             { label: 'Total Questões', val: consolidatedData.reduce((acc, curr) => acc + curr.totalQuestions, 0), icon: BarChart3, color: 'text-indigo-500' },
             { label: 'Ciclos Rodados', val: consolidatedData.reduce((acc, curr) => acc + curr.cyclesCount, 0), icon: BrainCircuit, color: 'text-amber-500' },
-            { label: 'Horas Totais', val: `${consolidatedData.reduce((acc, curr) => acc + curr.hours, 0)}h`, icon: Users, color: 'text-purple-500' },
+            { label: 'Horas Totais', val: `${(consolidatedData.reduce((acc, curr) => acc + curr.hours, 0) / 60).toFixed(1)}h`, icon: Users, color: 'text-purple-500' },
         ].map((stat, i) => (
             <Card key={i} className="p-6 bg-zinc-900 border-zinc-800 shadow-xl rounded-2xl flex items-center gap-5">
                 <div className={`p-4 rounded-xl bg-zinc-950 border border-zinc-800`}>
@@ -250,7 +298,7 @@ export default function MentorPerformanceView() {
                   </td>
                   <td className="p-8 text-center">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-800/50 text-zinc-300 rounded-lg text-xs font-bold border border-zinc-700/50">
-                      {m.hours} horas
+                      {Math.floor(m.hours / 60)}h {m.hours % 60}m
                     </div>
                   </td>
                   <td className="p-8 text-center">
