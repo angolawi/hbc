@@ -35,6 +35,9 @@ export default function CycleView({ setActiveTab }) {
         const data = await pullAllData(user, selectedMentee.id);
         const saved = data?.find(i => i.key === 'simpl_edital')?.data || [];
         setDisciplines(saved.map(d => ({ id: d.id, nome: d.nome, categoria: d.categoria, tag: d.tag })));
+        
+        const cycle = data?.find(i => i.key === 'simpl_ciclo')?.data;
+        if (cycle) setActiveCycle(cycle);
       } else {
         const editalData = localStorage.getItem('simpl_edital');
         if (editalData) {
@@ -46,6 +49,8 @@ export default function CycleView({ setActiveTab }) {
             tag: d.tag
           })));
         }
+        const cycleData = localStorage.getItem('simpl_ciclo');
+        if (cycleData) setActiveCycle(JSON.parse(cycleData));
       }
     } catch (e) {
       console.error("Erro ao carregar edital para ciclo:", e);
@@ -197,6 +202,16 @@ export default function CycleView({ setActiveTab }) {
       setShowFatigueWarning(false);
     }
   };
+  
+  const handleEditActiveCycle = () => {
+    if (!activeCycle || !activeCycle.blocks) {
+      alert("Nenhum ciclo ativo encontrado para este usuário.", "error");
+      return;
+    }
+    setGeneratedCycle(activeCycle.blocks);
+    setStep(3);
+    validateFatigue(activeCycle.blocks);
+  };
 
   const handleDragStart = (e, index) => {
     setDraggedIdx(index);
@@ -327,10 +342,21 @@ export default function CycleView({ setActiveTab }) {
                     }
                     setStep(2);
                 }} 
-                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white mb-3"
             >
                 Configurar Matérias
             </Button>
+
+            {activeCycle && (
+              <Button 
+                fullWidth 
+                variant="outline"
+                onClick={handleEditActiveCycle}
+                className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+              >
+                Editar Ciclo Atual
+              </Button>
+            )}
           </Card>
         </div>
       )}

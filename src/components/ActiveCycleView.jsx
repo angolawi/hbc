@@ -21,14 +21,12 @@ export default function ActiveCycleView({ setActiveTab }) {
   const hasFetchedRef = useRef(false);
 
   const loadData = async () => {
-    let active = localStorage.getItem('simpl_ciclo');
-    let history = localStorage.getItem('simpl_ciclo_history');
+    let active = null;
+    let history = null;
 
-    // Fallback seguro se o localStorage estiver vazio
-    if (!active && user && !hasFetchedRef.current) {
-      hasFetchedRef.current = true;
+    if (selectedMentee) {
       try {
-        const cloudData = await pullAllData(user);
+        const cloudData = await pullAllData(user, selectedMentee.id);
         if (cloudData && Array.isArray(cloudData)) {
           const cloudCiclo = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
           const cloudHistory = cloudData.find(i => i.key === 'simpl_ciclo_history')?.data;
@@ -41,7 +39,31 @@ export default function ActiveCycleView({ setActiveTab }) {
           }
         }
       } catch (err) {
-        console.error("Erro no fallback de pullAllData (ActiveCycle):", err);
+        console.error("Erro ao carregar dados do mentorado (ActiveCycle):", err);
+      }
+    } else {
+      active = localStorage.getItem('simpl_ciclo');
+      history = localStorage.getItem('simpl_ciclo_history');
+
+      // Fallback seguro se o localStorage estiver vazio
+      if (!active && user && !hasFetchedRef.current) {
+        hasFetchedRef.current = true;
+        try {
+          const cloudData = await pullAllData(user);
+          if (cloudData && Array.isArray(cloudData)) {
+            const cloudCiclo = cloudData.find(i => i.key === 'simpl_ciclo')?.data;
+            const cloudHistory = cloudData.find(i => i.key === 'simpl_ciclo_history')?.data;
+            
+            if (cloudCiclo) {
+              active = typeof cloudCiclo === 'string' ? cloudCiclo : JSON.stringify(cloudCiclo);
+            }
+            if (cloudHistory) {
+              history = typeof cloudHistory === 'string' ? cloudHistory : JSON.stringify(cloudHistory);
+            }
+          }
+        } catch (err) {
+          console.error("Erro no fallback de pullAllData (ActiveCycle):", err);
+        }
       }
     }
 
@@ -159,16 +181,29 @@ export default function ActiveCycleView({ setActiveTab }) {
               Ciclo Em Andamento
             </h2>
             {isMentor && (
-              <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
-                const confirmed = await confirm("Deseja realmente apagar o ciclo atual?", { variant: 'danger' });
-                if (confirmed) {
-                  localStorage.removeItem('simpl_ciclo');
-                  setActiveCycle(null);
-                  await pushData('simpl_ciclo', null);
-                }
-              }}>
-                Apagar Ciclo Atual
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="ghost" 
+                  className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 text-xs px-3 py-1 h-auto" 
+                  onClick={() => setActiveTab('create_cycle')}
+                >
+                  Editar Ciclo
+                </Button>
+                <Button variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs px-3 py-1 h-auto" onClick={async () => {
+                  const confirmed = await confirm("Deseja realmente apagar o ciclo atual?", { variant: 'danger' });
+                  if (confirmed) {
+                    if (selectedMentee) {
+                      await pushData('simpl_ciclo', null, user, selectedMentee.id);
+                    } else {
+                      localStorage.removeItem('simpl_ciclo');
+                      await pushData('simpl_ciclo', null);
+                    }
+                    setActiveCycle(null);
+                  }
+                }}>
+                  Apagar Ciclo Atual
+                </Button>
+              </div>
             )}
           </div>
           <p className="text-zinc-400 text-sm mb-4">Esta é a sua fila de estudos. Ela guiará a ordem das disciplinas no cronômetro.</p>

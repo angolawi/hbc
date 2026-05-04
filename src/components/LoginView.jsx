@@ -28,23 +28,28 @@ export default function LoginView() {
         const { error } = await login(email, password);
         if (error) throw error;
       } else {
-        // 1. Check for invitation
-        const { data: inv, error: invErr } = await supabase
-          .from('invitations')
-          .select('*')
-          .eq('email', email.toLowerCase().trim())
-          .maybeSingle();
+        // 1. Check for invitation (Student) or Whitelist (Mentor)
+        const normalizedEmail = email.toLowerCase().trim();
+        
+        const [invResult, whiteResult] = await Promise.all([
+          supabase.from('invitations').select('*').eq('email', normalizedEmail).maybeSingle(),
+          supabase.from('mentor_whitelist').select('*').eq('email', normalizedEmail).maybeSingle()
+        ]);
 
-        if (invErr || !inv) {
+        const inv = invResult.data;
+        const isWhitelistedMentor = !!whiteResult.data;
+
+        if (!inv && !isWhitelistedMentor) {
+          console.error("Signup blocked - Email not found in invitations or mentor_whitelist:", normalizedEmail);
           throw new Error('Acesso restrito: Você precisa de um convite vinculado a este e-mail para criar uma conta.');
         }
 
         // 2. Perform Signup
-        const { data: authData, error: signUpError } = await signUp(email, password);
+        const { data: authData, error: signUpError } = await signUp(normalizedEmail, password);
         if (signUpError) throw signUpError;
 
         // 3. Auto-link to mentor and finalize
-        if (authData?.user) {
+        if (authData?.user && inv) {
           // Add mentorship record
           await supabase.from('mentorships').insert([{
             mentor_id: inv.invited_by,

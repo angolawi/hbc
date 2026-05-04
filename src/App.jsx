@@ -89,12 +89,12 @@ function App() {
   const sidebarItems = [
     { id: 'mentor_stats', label: 'Análise Global', icon: TrendingUp, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: !isMentor || !!selectedMentee },
     { id: 'mentor', label: 'Gestão de Alunos', icon: ShieldCheck, color: 'border-white text-white bg-white/5', hidden: !isMentor || !!selectedMentee },
-    { id: 'mentor_templates', label: 'Biblioteca', icon: Layers, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: !isMentor || !!selectedMentee },
+    { id: 'mentor_templates', label: 'Biblioteca de Editais', icon: Layers, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: !isMentor || !!selectedMentee },
     { id: 'home', label: 'Início', icon: LayoutDashboard, color: 'border-sky-500 text-sky-400 bg-sky-500/5', hidden: isMentor && !selectedMentee },
     { id: 'timer', label: 'Cronômetro', icon: Timer, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
     { id: 'ciclo', label: selectedMentee ? 'Planejar Ciclo' : 'Meu Ciclo', icon: BrainCircuit, color: 'border-amber-500 text-amber-400 bg-amber-500/5', hidden: isMentor && !selectedMentee, altId: 'create_cycle' },
     { id: 'cycledashboard', label: selectedMentee ? 'Controle Aluno' : 'Meu Controle', icon: ListChecks, color: 'border-rose-500 text-rose-400 bg-rose-500/5', hidden: isMentor && !selectedMentee },
-    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : (isMentor ? 'Cadastrar Editais' : 'Meu Edital'), icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5' },
+    { id: 'edital', label: selectedMentee ? 'Configurar Edital' : 'Meu Edital', icon: ListChecks, color: 'border-indigo-500 text-indigo-400 bg-indigo-500/5', hidden: isMentor && !selectedMentee },
     { id: 'stats', label: 'Desempenho', icon: BarChart3, color: 'border-emerald-500 text-emerald-400 bg-emerald-500/5', hidden: isMentor && !selectedMentee },
     { id: 'settings', label: 'Ajustes', icon: Settings, color: 'border-zinc-400 text-zinc-100 bg-zinc-800/10' },
   ];
@@ -190,6 +190,7 @@ function App() {
             {activeTab === 'stats' && 'Desempenho Geral'}
             {activeTab === 'settings' && 'Configurações'}
             {activeTab === 'mentor' && 'Gestão de Alunos'}
+            {activeTab === 'mentor_templates' && 'Biblioteca de Editais'}
           </span>
         </div>
 

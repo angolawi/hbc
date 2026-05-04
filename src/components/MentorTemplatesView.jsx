@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { FileText, Trash, Edit3, Eye, Search, Layers, ListChecks, ChevronLeft } from 'lucide-react';
+import { FileText, Trash, Edit3, Eye, Search, Layers, ListChecks, ChevronLeft, Plus } from 'lucide-react';
+import EditalView from './EditalView';
 
 export default function MentorTemplatesView({ setActiveTab }) {
   const { user } = useAuth();
@@ -13,6 +14,8 @@ export default function MentorTemplatesView({ setActiveTab }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -61,19 +64,54 @@ export default function MentorTemplatesView({ setActiveTab }) {
           <p className="text-zinc-500 text-sm mt-1 uppercase font-bold tracking-widest">Gerencie seus editais mestres e padrões de estudo.</p>
         </div>
 
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-          <input 
-            type="text" 
-            placeholder="Buscar por nome..." 
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-3 pl-10 pr-4 text-sm text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-          />
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar por nome..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-3 pl-10 pr-4 text-sm text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+            />
+          </div>
+          <Button 
+            onClick={() => {
+              setIsEditing(true);
+              setEditingTemplateId(null);
+            }}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white w-full md:w-auto h-12 px-6 rounded-2xl font-bold flex items-center justify-center gap-2"
+          >
+            <Plus size={18} />
+            Novo Template
+          </Button>
         </div>
       </header>
 
-      {previewTemplate ? (
+      {isEditing ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              setIsEditing(false);
+              setEditingTemplateId(null);
+              fetchTemplates();
+            }} 
+            className="mb-6 text-zinc-400 hover:text-white flex items-center gap-2"
+          >
+            <ChevronLeft size={18} /> Voltar para a Biblioteca
+          </Button>
+          <EditalView 
+            isTemplateMode={true}
+            initialTemplateId={editingTemplateId} 
+            onClose={() => {
+              setIsEditing(false);
+              setEditingTemplateId(null);
+              fetchTemplates();
+            }}
+          />
+        </div>
+      ) : previewTemplate ? (
         <div className="animate-in fade-in zoom-in-95 duration-300">
            <Button 
                 variant="ghost" 
@@ -95,16 +133,16 @@ export default function MentorTemplatesView({ setActiveTab }) {
                           <p className="text-xs text-zinc-500 mt-1 uppercase tracking-widest font-black">Estrutura de Disciplinas</p>
                       </div>
                       <div className="flex gap-3">
-                         <Button 
+                          <Button 
                             onClick={() => {
-                                // Redirecionar para EditalView e carregar o template seria ideal
-                                // Por agora, vamos apenas sugerir ir lá, ou podemos implementar o roteamento
-                                alert("Carregue este template na aba 'Gerenciar Editais' para fazer alterações.");
+                                setIsEditing(true);
+                                setEditingTemplateId(previewTemplate.id);
+                                setPreviewTemplate(null);
                             }}
                             className="bg-indigo-600 hover:bg-indigo-500 text-white"
-                         >
+                          >
                             <Edit3 size={16} className="mr-2" /> Editar Conteúdo
-                         </Button>
+                          </Button>
                       </div>
                   </div>
 
@@ -135,7 +173,7 @@ export default function MentorTemplatesView({ setActiveTab }) {
              <div className="col-span-full py-20 text-center flex flex-col items-center gap-4">
                 <FileText size={64} className="text-zinc-800" />
                 <p className="text-zinc-600 font-bold uppercase tracking-widest text-xs">Nenhum template encontrado.</p>
-                <Button onClick={() => setActiveTab('edital')} className="mt-2 bg-zinc-800 text-zinc-400 hover:text-white">Criar Novo Template</Button>
+                <Button onClick={() => { setIsEditing(true); setEditingTemplateId(null); }} className="mt-2 bg-zinc-800 text-zinc-400 hover:text-white">Criar Novo Template</Button>
              </div>
            ) : (
              filteredTemplates.map(t => (

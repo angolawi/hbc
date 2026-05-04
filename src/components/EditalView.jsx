@@ -20,7 +20,7 @@ const normalizeText = (text) => {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 };
 
-export default function EditalView() {
+export default function EditalView({ initialTemplateId, onClose, isTemplateMode }) {
   const { alert, confirm } = useNotification();
   const { user, selectedMentee, isMentor } = useAuth();
   const [disciplines, setDisciplines] = useState([]);
@@ -43,6 +43,37 @@ export default function EditalView() {
 
   useEffect(() => {
     const loadData = async () => {
+      if (initialTemplateId) {
+        setLoading(true);
+        try {
+          const { data: template, error } = await supabase
+            .from('edital_templates')
+            .select('*')
+            .eq('id', initialTemplateId)
+            .single();
+          
+          if (error) throw error;
+          if (template) {
+            setDisciplines(template.data || []);
+            setTemplateName(template.name || '');
+            setEditingTemplateId(template.id);
+          }
+        } catch (err) {
+          console.error("Erro ao carregar template:", err);
+          alert("Erro ao carregar template para edição.");
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (isTemplateMode && !initialTemplateId) {
+        setDisciplines([]);
+        setTemplateName('');
+        setEditingTemplateId(null);
+        setIsCreatingNew(true);
+        return;
+      }
+
       if (selectedMentee) {
         setLoading(true);
         setEditingTemplateId(null);
@@ -111,12 +142,12 @@ export default function EditalView() {
     };
     loadData();
     if (isMentor) fetchTemplates();
+
     const handleSync = (e) => {
       if (e.detail.type === 'pull' && e.detail.status === 'success') {
         const isViewingMentee = !!selectedMentee;
         const eventIsForMentee = !!e.detail.isMentee;
         
-        // Se houve uma sincronização de sucesso para o contexto que estamos vendo, recarregamos
         if (isViewingMentee === eventIsForMentee) {
           const localEdital = localStorage.getItem('simpl_edital');
           if (localEdital) {
@@ -138,7 +169,7 @@ export default function EditalView() {
     };
     window.addEventListener('sync-status', handleSync);
     return () => window.removeEventListener('sync-status', handleSync);
-  }, [selectedMentee, user, isMentor]);
+  }, [selectedMentee, user, isMentor, initialTemplateId]);
 
   const fetchTemplates = async () => {
     const { data } = await supabase.from('edital_templates').select('*').order('created_at', { ascending: false });
@@ -158,11 +189,13 @@ export default function EditalView() {
       if (error) alert("Erro ao atualizar template.");
       else {
         alert("Template atualizado com sucesso!", "success");
-        setEditingTemplateId(null);
-        setTemplateName('');
-        setDisciplines([]); // Limpa a tela
-        localStorage.removeItem('simpl_edital');
-        fetchTemplates();
+        if (onClose) onClose();
+        else {
+          setEditingTemplateId(null);
+          setTemplateName('');
+          setDisciplines([]);
+          fetchTemplates();
+        }
       }
     } else {
       const { error } = await supabase.from('edital_templates').insert({
@@ -174,11 +207,13 @@ export default function EditalView() {
       if (error) alert("Erro ao salvar template.");
       else {
         alert("Template de Edital salvo com sucesso!", "success");
-        setTemplateName('');
-        setDisciplines([]); // Limpa a tela
-        setIsCreatingNew(false);
-        localStorage.removeItem('simpl_edital');
-        fetchTemplates();
+        if (onClose) onClose();
+        else {
+          setTemplateName('');
+          setDisciplines([]);
+          setIsCreatingNew(false);
+          fetchTemplates();
+        }
       }
     }
   };
@@ -833,10 +868,10 @@ export default function EditalView() {
       <header className="mb-8 flex justify-between items-center bg-zinc-900 p-6 rounded-2xl border border-zinc-800/80 shadow-lg">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100 mb-1">
-            {selectedMentee ? `Edital de ${selectedMentee.displayName || selectedMentee.email.split('@')[0]}` : 'Meu Edital Verticalizado'}
+            {isTemplateMode ? (editingTemplateId ? 'Editando Template Mestre' : 'Criando Novo Template') : (selectedMentee ? `Edital de ${selectedMentee.displayName || selectedMentee.email.split('@')[0]}` : 'Meu Edital Verticalizado')}
           </h1>
           <p className="text-indigo-400 text-sm font-medium">
-            {selectedMentee ? 'Configure e planeje as matérias para o seu aluno.' : 'Controle seu avanço descascando o edital tópico por tópico.'}
+            {isTemplateMode ? 'Crie um modelo mestre para ser atribuído aos seus alunos.' : (selectedMentee ? 'Configure e planeje as matérias para o seu aluno.' : 'Controle seu avanço descascando o edital tópico por tópico.')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -852,35 +887,34 @@ export default function EditalView() {
         </div>
       </header>
 
-      {/* Mentor Toolbox - Templates (Assign only at top) */}
+      {/* Mentor Toolbox - Templates & Tools (Assign/Import) */}
       {isMentor && selectedMentee && (
-        <Card className="mb-8 p-6 bg-zinc-900 border-indigo-500/30 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-            <BrainCircuit size={100} className="text-white" />
-          </div>
-          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-400 mb-2 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-indigo-400" />
-                Ferramentas de Mentor
-              </h3>
-              <p className="text-xs text-zinc-600">Atribua um edital pré-configurado para este aluno.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
+              <BrainCircuit size={80} className="text-white" />
             </div>
-
-            <div className="w-full md:w-auto flex flex-col gap-2 min-w-[300px]">
+            <div className="relative z-10">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 mb-4 flex items-center gap-2">
+                <ShieldCheck size={16} className="text-indigo-400" />
+                Configuração Rápida
+              </h3>
+              <p className="text-[10px] text-zinc-600 mb-4">Selecione um edital mestre para aplicar a este aluno.</p>
+              
               <Button
                 onClick={() => setShowTemplates(!showTemplates)}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 flex items-center justify-center gap-2"
+                variant="outline"
+                className={`w-full border-indigo-500/30 text-indigo-400 font-bold h-12 flex items-center justify-center gap-2 ${showTemplates ? 'bg-indigo-500/10' : ''}`}
               >
                 <FileText size={18} />
-                {showTemplates ? 'Fechar Lista' : 'Ver Meus Templates'}
+                {showTemplates ? 'Fechar Lista' : 'Escolher da Biblioteca'}
               </Button>
 
-              {showTemplates && templates.length > 0 && (
-                <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar mt-2">
-                  {templates.map(t => (
-                    <div key={t.id} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800 group">
-                      <span className="text-xs font-bold text-zinc-300">{t.name}</span>
+              {showTemplates && (
+                <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar animate-in slide-in-from-top-2">
+                  {templates.length > 0 ? templates.map(t => (
+                    <div key={t.id} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800 hover:border-indigo-500/50 transition-colors">
+                      <span className="text-[11px] font-bold text-zinc-300">{t.name}</span>
                       <Button
                         onClick={() => applyTemplate(t.data)}
                         size="sm"
@@ -889,17 +923,37 @@ export default function EditalView() {
                         ATRIBUIR
                       </Button>
                     </div>
-                  ))}
+                  )) : <p className="text-center text-zinc-600 text-[10px] italic py-4">Nenhum template encontrado.</p>}
                 </div>
               )}
-              {showTemplates && templates.length === 0 && <p className="text-center text-zinc-600 text-[10px] italic">Sem templates.</p>}
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          <Card className="p-6 bg-zinc-900 border-zinc-800/80 shadow-xl relative overflow-hidden group">
+            <div className="relative z-10 flex flex-col h-full">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 mb-4 flex items-center gap-2">
+                <FileText size={16} className="text-emerald-500" />
+                Dados e Progresso
+              </h3>
+              <p className="text-[10px] text-zinc-600 mb-4">Importe dados de desempenho de fontes externas.</p>
+              
+              <div className="flex flex-col gap-2 mt-auto">
+                <Button
+                  onClick={() => setShowProgressImportModal(true)}
+                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold h-12 flex items-center justify-center gap-2"
+                >
+                  <FileText size={18} />
+                  Importar Planilha
+                </Button>
+                <p className="text-[9px] text-zinc-500 text-center italic">Mescla acertos e erros com o edital atual.</p>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
 
-      {/* Smart Extract Edital Completo - SOMENTE PARA MENTORES - Only if editing/creating */}
-      {isMentor && (selectedMentee || editingTemplateId || isCreatingNew) && (
+      {/* Extração Inteligente - Setup Mode (Always available if creating/editing) */}
+      {isMentor && (editingTemplateId || isCreatingNew || (selectedMentee && disciplines.length === 0)) && (
         <Card className="p-6 bg-zinc-900 border-indigo-500/30 shadow-xl rounded-2xl mb-8 relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
           <div className="relative">
@@ -907,33 +961,23 @@ export default function EditalView() {
               <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
                 <BrainCircuit size={24} className="text-indigo-400 group-hover:animate-pulse" /> Extração Inteligente
               </h2>
-              {!selectedMentee && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setIsCreatingNew(false); setEditingTemplateId(null); }}
-                  className="text-zinc-500 hover:text-zinc-300"
-                >
-                  Cancelar e Voltar para Biblioteca
-                </Button>
-              )}
             </div>
-            <p className="text-sm text-zinc-400 mb-6 max-w-4xl">
-              Cole integralmente o texto do bloco de "Conteúdo Programático" do seu edital. O sistema identificará automaticamente as disciplinas (escritas em <strong>CAIXA ALTA</strong>) e segmentará a hierarquia das sub-matérias baseado em prefixos numéricos (Ex: 1, 1.1, 1.2.1).
+            <p className="text-[11px] text-zinc-400 mb-6 max-w-4xl italic">
+              Cole o texto do "Conteúdo Programático" do edital para gerar a estrutura automaticamente.
             </p>
 
             <div className="flex flex-col xl:flex-row gap-4 items-end">
               <Textarea
-                placeholder={`Exemplo de Extração:\nLÍNGUA PORTUGUESA: 1 Compreensão e interpretação de textos. 1.1 Gêneros textuais.\nRACIOCÍNIO LÓGICO\n1 Conjuntos...`}
-                className="min-h-[140px] text-sm bg-zinc-950/80 w-full"
+                placeholder={`Cole o texto aqui...`}
+                className="min-h-[100px] text-sm bg-zinc-950/80 w-full"
                 value={smartText}
                 onChange={(e) => setSmartText(e.target.value)}
               />
               <Button
                 onClick={processSmartExtract}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 w-full xl:w-64 h-12 shrink-0 font-bold tracking-wide"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white w-full xl:w-64 h-12 shrink-0 font-bold tracking-wide"
               >
-                Processar Edital
+                Gerar Matérias
               </Button>
             </div>
           </div>
@@ -943,55 +987,15 @@ export default function EditalView() {
       {/* Main Content Area */}
       <div className="animate-in slide-in-from-top-4 fade-in duration-300">
 
-        {/* If Mentor is not editing anything, show Library Landing */}
-        {isMentor && !selectedMentee && !editingTemplateId && !isCreatingNew ? (
-          <div className="max-w-5xl mx-auto space-y-8">
-            <Card className="p-12 bg-zinc-950 border-dashed border-zinc-800 text-center flex flex-col items-center gap-6 rounded-3xl">
-              <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-400">
-                <FileText size={32} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-black text-zinc-100 mb-2">Biblioteca de Templates Master</h2>
-                <p className="text-zinc-500 max-w-md mx-auto">Gerencie seus editais padrão ou crie um novo do zero para atribuir aos seus alunos.</p>
-              </div>
-              <div className="flex gap-4">
-                <Button onClick={startNewTemplate} className="bg-white text-zinc-950 font-black px-8 h-12 hover:bg-zinc-200">
-                  CRIAR NOVO TEMPLATE
-                </Button>
-              </div>
-            </Card>
-
-            {templates.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {templates.map(t => (
-                  <div key={t.id} className="p-6 bg-zinc-900 border border-zinc-800 rounded-2xl flex justify-between items-center group hover:border-indigo-500/50 transition-all">
-                    <div>
-                      <span className="font-bold text-zinc-100 block mb-1">{t.name}</span>
-                      <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">{t.data.length} disciplinas cadastradas</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={() => loadTemplate(t)} variant="ghost" size="sm" className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:bg-indigo-400/10 border border-indigo-500/30">
-                        CARREGAR EDITAL
-                      </Button>
-                      <button onClick={() => deleteTemplate(t.id, t.name)} className="text-zinc-700 hover:text-rose-500 p-2">
-                        <Trash size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* List of Disciplinas (Regular editing view) */
-          <div className="space-y-6 max-w-5xl mx-auto">
-            {disciplines.length === 0 ? (
-              <div className="text-center p-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50 border-dashed">
-                <GraduationCap className="mx-auto text-zinc-600 mb-4" size={48} />
-                <h3 className="text-lg font-bold text-zinc-300">Aguardando inserção de matérias</h3>
-                <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima ou adicione manualmente.</p>
-              </div>
-            ) : (
+        {/* List of Disciplinas (Regular editing view) */}
+        <div className="space-y-6 max-w-5xl mx-auto">
+          {disciplines.length === 0 ? (
+            <div className="text-center p-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50 border-dashed">
+              <GraduationCap className="mx-auto text-zinc-600 mb-4" size={48} />
+              <h3 className="text-lg font-bold text-zinc-300">Aguardando inserção de matérias</h3>
+              <p className="text-zinc-500 text-sm mt-2">Use a <strong>Extração Inteligente</strong> acima ou adicione manualmente.</p>
+            </div>
+          ) : (
               <div className="space-y-12">
                 {/* Disciplinas no Ciclo Ativo */}
                 {disciplines.some(d => activeCycleDiscs.includes(normalizeText(d.nome))) && (
@@ -1095,8 +1099,7 @@ export default function EditalView() {
               </Card>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
       <EditalProgressImportModal
         isOpen={showProgressImportModal}
