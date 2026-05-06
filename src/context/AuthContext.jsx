@@ -155,10 +155,10 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('is_mentor_dev');
       
       // Recarrega para garantir que nenhum cache de memória persista
-      window.location.replace('/');
+      window.location.replace('/hbc');
     } catch (e) {
       console.error("Erro ao deslogar:", e);
-      window.location.replace('/');
+      window.location.replace('/hbc');
     }
   };
 
